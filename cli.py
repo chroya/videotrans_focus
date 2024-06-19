@@ -65,6 +65,8 @@ def process(video_path, cfg_file, enableCuda = True) :
     # cuda必须准确的设置，如果没cuda环境却启用了cuda，后面会报错
     config.params['cuda'] = enableCuda
 
+    if enableCuda:
+        config.params['cuda'] = True
     if video_path and os.path.exists(video_path):
         config.params['source_mp4'] = video_path
 
@@ -216,7 +218,7 @@ def process(video_path, cfg_file, enableCuda = True) :
         send_notification(config.transobj["zhixingwc"], f'"subtitles -> audio"')
         print(f'{"执行完成" if config.defaulelang == "zh" else "Succeed"} {video_task.targetdir_mp4}')
 
-        return config.params['output_target_mp4_path']
+        return video_task.targetdir_mp4
     except Exception as e:
         send_notification(e, f'{video_task.obj["raw_basename"]}')
         # 捕获异常并重新绑定回溯信息
