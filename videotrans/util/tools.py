@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import copy
 import hashlib
+import math
 import platform
 import random
 
@@ -189,9 +190,9 @@ def runffmpeg(arg, *, noextname=None,
     arg_copy = copy.deepcopy(arg)
 
     if fps:
-        cmd = ["ffmpeg", "-hide_banner", "-ignore_unknown", "-vsync", '1', '-r', f'{fps}']
+        cmd = ["ffmpeg", "-hide_banner", "-ignore_unknown"]
     else:
-        cmd = ["ffmpeg", "-hide_banner", "-ignore_unknown", "-vsync", f"{config.settings['vsync']}"]
+        cmd = ["ffmpeg", "-hide_banner", "-ignore_unknown"]
     # 启用了CUDA 并且没有禁用GPU
     # 默认视频编码 libx264 / libx265
     default_codec=f"libx{config.settings['video_codec']}"
@@ -208,9 +209,22 @@ def runffmpeg(arg, *, noextname=None,
         for i, it in enumerate(arg):
             if i > 0 and arg[i - 1] == '-c:v':
                 arg[i] = config.video_codec
+            elif it=='-crf' and '_nvenc' in config.video_codec and config.settings['cuda_qp']:
+                arg[i]='-qp'
+    
+    if fps:
+        arg.insert(-1,'-r')
+        arg.insert(-1,f'{fps}')
+    # else:
+    #     arg.insert(-1,'-fps_mode')
+    #     arg.insert(-1,f"{config.settings['vsync']}")
 
     cmd = cmd + arg
-    print(f'ffmpeg:{cmd=}')
+    # 插入自定义 ffmpeg 参数
+    if config.settings['ffmpeg_cmd']:
+        for it in config.settings['ffmpeg_cmd'].split(' '):
+            cmd.insert(-1,str(it))
+    # print(f'ffmpeg:{" ".join(cmd)}')
     config.logger.info(f'runffmpeg-tihuan:{cmd=}')
     if noextname:
         config.queue_novice[noextname] = 'ing'
@@ -263,7 +277,7 @@ def runffmpeg(arg, *, noextname=None,
 # run ffprobe 获取视频元信息
 def runffprobe(cmd):
     # cmd[-1] = os.path.normpath(cmd[-1])
-    print(f'ffprobe:{cmd=}')
+    # print(f'ffprobe:{cmd=}')
     try:
         p = subprocess.run( cmd if isinstance(cmd,str) else ['ffprobe'] + cmd,
                            stdout=subprocess.PIPE,
@@ -372,7 +386,7 @@ def conver_mp4(source_file, out_mp4, *, is_box=False):
         "-c:a",
         "aac",
         '-crf', f'{config.settings["crf"]}',
-        '-preset', 'slow',
+        '-preset', config.settings['preset'],
         out_mp4
     ], is_box=is_box)
 
@@ -402,6 +416,8 @@ def split_audio_byraw(source_mp4, targe_audio, is_separate=False,btnkey=None):
         "-i",
         source_mp4,
         "-vn",
+        "-ac",
+        "1",
         "-c:a",
         "aac",
         targe_audio
@@ -539,11 +555,12 @@ def concat_multi_mp4(*, filelist=[], out=None, maxsec=None, fps=None):
     if out:
         out=Path(out).as_posix()
     if maxsec:
-        return runffmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', txt, '-c:v', f"libx{video_codec}", '-t', f"{maxsec}", '-crf',
-                          f'{config.settings["crf"]}', '-preset', 'slow', '-an', out], fps=fps)
+        print(f'maxsec={maxsec=}')
+        return os.system(f'ffmpeg -y -f  concat -safe 0 -i "{txt}"  -c:v libx{video_codec}  -crf {config.settings["crf"]} -preset {config.settings["preset"]} -an {out}')
+        # return runffmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', txt, '-c:v', f"libx{video_codec}", '-crf',  f'{config.settings["crf"]}', '-preset', config.settings['preset'], '-an', out], fps=fps)
     return runffmpeg(
         ['-y', '-f', 'concat', '-safe', '0', '-i', txt, '-c:v', f"libx{video_codec}", '-an', '-crf', f'{config.settings["crf"]}',
-         '-preset', 'slow', out], fps=fps)
+         '-preset', config.settings['preset'], out], fps=fps)
 
 
 # 多个音频片段连接 
@@ -579,6 +596,7 @@ def precise_speed_up_audio(*, file_path=None, out=None, target_duration_ms=None,
     # speedup_ratio = current_duration_ms / target_duration_ms
     # 计算速度变化率
     speedup_ratio = current_duration_ms / target_duration_ms
+
     if target_duration_ms <= 0 or speedup_ratio <= 1:
         return True
     rate = min(max_rate, speedup_ratio)
@@ -865,7 +883,7 @@ def cut_from_video(*, ss="", to="", source="", pts="", out="", fps=None):
                   f"libx{video_codec}",
                   '-an',
                   '-crf', f'{config.settings["crf"]}',
-                  '-preset', 'slow',
+                  '-preset', config.settings['preset'],
                   f'{out}'
                   ]
     return runffmpeg(cmd, fps=fps)
@@ -1333,50 +1351,119 @@ def format_result(source_list,target_list,target_lang="zh"):
         it_len=len(it.strip())
         source_total+=it_len
         source_len.append(it_len)
-    target_str=".".join(target_list).strip()
+    print(f'{target_list=}')
+    print(f'{source_total=},{source_len=}')
+
+    target_str="".join(target_list).strip()
     target_total=len(target_str)
     target_len=[]
     for num in source_len:
-        target_len.append(int(target_total*num/source_total))
+        n=math.floor(target_total*num/source_total)
+        n=1 if n==0 else n
+        target_len.append(n)
+    print(f'{target_total=},{target_len=}')
+
     # 开始截取文字
     result=[]
     start=0
-    # 如果是中日韩泰语言，直接按字切割
-    if (len(target_lang)<6 and target_lang[:2].lower() in ['zh','ja','ko','th']) or (len(target_lang)>5 and target_lang[:3].lower() in ['sim','tra','jap','kor','tha']):
-        for num in target_len:
-            text=target_str[start:start+num]
-            start=start+num
-            result.append(text)
-        return result
-
     #如果其他语言，需要找到最近的标点或空格
-    flag=["."," ",",","!","?","-","_","~","(",")","[","]","{","}","<",">","/",";",":","|"]
+    flag=[
+          ".",
+          '"',
+          "'",
+          " ",
+          ",",
+          "!",
+          "?",
+          "_",
+          "~",
+          "[",
+          "]",
+          "{",
+          "}",
+          "<",
+          ">",
+          ";",
+          ":",
+          "|",
+          "(",
+          ")",
+          "，",
+          "。",
+          "；",
+          "：",
+          "‘",
+          "“",
+          "？",
+          "、",
+          "《",
+          "》",
+          "【",
+          "】",
+          "｛",
+          "｝",
+          "（",
+          "）",
+          "—",
+          "·",
+          "！",
+          "￥",
+          "…",
+          "\n"
+    ]
     for num in target_len:
         lastpos=start+num
-        text=target_str[start:lastpos]
-        if num<3 or text[-1] in flag:
-            start=start+num
-            result.append(text)
+        if start>=target_total:
+            result.append("")
             continue
-        # 倒退3个到前进10个寻找标点
-        offset=-2
-        while offset<5:
-            lastpos+=offset
+        text=target_str[start:lastpos]
+
+        if len(text)<3 or text[-1] in flag:
+            start=start+num
+            result.append(text.strip())
+            continue
+        # 倒退3个到前进6个寻找标点 切割点
+        offset=-5
+        maxlen=1
+        while offset<maxlen:
+            newlastpos=lastpos+offset
+            if start>=target_total:
+                break
             # 如果达到了末尾或者找到了标点则切割
-            if lastpos>=target_total or target_str[lastpos] in flag:
-                text=target_str[start:lastpos+1] if start<target_total else ""
-                start=lastpos+1
-                result.append(text)
+            if newlastpos>=target_total:
+                result.append(target_str[start:])
+                break
+            if newlastpos>=target_total or target_str[newlastpos] in flag:
+                text=target_str[start:newlastpos+1] if start<target_total else ""
+                start=newlastpos+1
+                result.append(text.strip())
                 break
             offset+=1
         # 已找到切割点
-        if offset<5:
+        if offset<maxlen:
             continue
         # 没找到分割标点，强制截断
         text=target_str[start:start+num] if start<target_total else ""
         start=start+num
-        result.append(text)
-    print(f'{result=}')
+        result.append(text.strip())
+    if len(result)<len(source_list):
+        for i in range(len(source_list)-len(result)):
+            result.append("")
+
+    length=len(result)
+    for i,it in enumerate(result):
+        if i>0 and it=="":
+            tmp=re.split(r'[\s,.? 。，！；、·：… ]',result[i-1])
+            if len(tmp)>1 and tmp[-1]:
+                it=tmp[-1]
+                result[i-1]=" ".join(tmp[:-1])
+            elif len(tmp)>2 and tmp[-2]:
+                it=tmp[-2]
+                result[i-1]=" ".join(tmp[:-2])
+            result[i]=it
+
+
+
     return result
 
 # 删除翻译结果的特殊字符

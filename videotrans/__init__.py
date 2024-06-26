@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
 
-VERSION="v1.91"
-VERSION_NUM=110791
+VERSION="v1.98"
+VERSION_NUM=110798

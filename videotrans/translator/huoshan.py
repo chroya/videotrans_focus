@@ -1,58 +1,40 @@
 # -*- coding: utf-8 -*-
-import os
-import re
 import time
-import httpx
-import openai
-from openai import OpenAI, APIError
+import requests
+from requests import JSONDecodeError
 from videotrans.configure import config
 from videotrans.util import tools
 
 
 
-def create_openai_client():
-    api_url = config.params['localllm_api']
-    openai.base_url = api_url
-    config.logger.info(f'当前localllm:{api_url=}')
-    proxies={"http://":None,"https://":None}
-    try:
-        client = OpenAI(api_key=config.params['localllm_key'],base_url=api_url,http_client=httpx.Client(proxies=proxies))
-    except Exception as e:
-        raise Exception(f'API={api_url},{str(e)}')
-    return client,api_url
-
-def get_content(d,*,model=None,prompt=None,assiant=None):
+def get_content(d,*,prompt=None,assiant=None):
     message = [
-        {'role': 'system', 'content': "You are a professional, authentic translation engine, only returns translations"},
-        #{'role': 'assistant', 'content': assiant},
-        {'role': 'user', 'content':  prompt.replace('[TEXT]',"\n".join(d))},
+        {'role': 'system', 'content': prompt},
+        {'role': 'assistant', 'content': assiant},
+        {'role': 'user', 'content':  "\n".join(d)},
     ]
-    config.logger.info(f"\n[localllm]发送请求数据:{message=}")
+    config.logger.info(f"\n[字节火山引擎]发送请求数据:{message=}")
+    print(f"接入点名称:{config.params['zijiehuoshan_model']}")
     try:
-        response = model.chat.completions.create(
-            model=config.params['localllm_model'],
-            messages=message
-        )
-        config.logger.info(f'[localllm]响应:{response=}')
-    except APIError as e:
-        config.logger.error(f'[localllm]请求失败:{str(e)}')
-        raise Exception(f'{e.message=}')
-    except Exception as e:
-        config.logger.error(f'[localllm]请求失败:{str(e)}')
-        raise Exception(e)
-    if isinstance(response,str):
-        raise Exception(response)
-
-    if response.choices:
-        result = response.choices[0].message.content.strip()
-    elif response.data and response.data['choices']:
-        result = response.data['choices'][0]['message']['content'].strip()
+        req={
+            "model":config.params['zijiehuoshan_model'],
+            "messages":message
+        }
+        resp=requests.post("https://ark.cn-beijing.volces.com/api/v3/chat/completions",proxies={"https":"","http":""},json=req,headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {config.params['zijiehuoshan_key']}"
+        })
+        config.logger.info(f'[字节火山引擎]响应:{resp.text=}')
+        data=resp.json()
+        if 'choices' not in data or len(data['choices'])<1:
+            raise Exception(f'字节火山翻译失败:{resp.text}')
+        result = data['choices'][0]['message']['content'].strip()
+    except JSONDecodeError as e:
+        raise Exception('字节火山翻译失败，返回数据不是有效json格式')
     else:
-        config.logger.error(f'[localllm]请求失败:{response=}')
-        raise Exception(f"{response}")
+        return result
 
-    result = result.replace('##', '').strip().replace('&#39;', '"').replace('&quot;', "'")
-    return result,response
 
 
 def trans(text_list, target_language="English", *, set_p=True,inst=None,stop=0,source_code="",is_test=False):
@@ -75,8 +57,8 @@ def trans(text_list, target_language="English", *, set_p=True,inst=None,stop=0,s
     # 切割为每次翻译多少行，值在 set.ini中设定，默认10
     split_size = int(config.settings['trans_thread'])
     #if is_srt and split_size>1:
-    prompt=config.params['localllm_template'].replace('{lang}', target_language)
-    with open(config.rootdir+"/videotrans/localllm.txt",'r',encoding="utf-8") as f:
+    prompt=config.params['zijiehuoshan_template'].replace('{lang}', target_language)
+    with open(config.rootdir+"/videotrans/zijie.txt",'r',encoding="utf-8") as f:
         prompt=f.read()
     prompt=prompt.replace('{lang}', target_language)
     assiant=f"Sure, please provide the text you need translated into {target_language}"
@@ -107,9 +89,6 @@ def trans(text_list, target_language="English", *, set_p=True,inst=None,stop=0,s
                     f"第{iter_num}次出错重试" if config.defaulelang == 'zh' else f'{iter_num} retries after error',btnkey=inst.init['btnkey'] if inst else "")
             time.sleep(10)
 
-        client,api_url = create_openai_client()
-        config.logger.info(f'[localllm],{api_url=}')
-
 
         for i,it in enumerate(split_source_text):
             if config.exit_soft or  (config.current_status != 'ing' and config.box_trans != 'ing' and not is_test):
@@ -118,9 +97,9 @@ def trans(text_list, target_language="English", *, set_p=True,inst=None,stop=0,s
                 continue
             if stop>0:
                 time.sleep(stop)
-            
+
             try:
-                result,response=get_content(it,model=client,prompt=prompt,assiant=assiant)
+                result=get_content(it,prompt=prompt,assiant=assiant)
 
                 if inst and inst.precent < 75:
                     inst.precent += 0.01
@@ -129,7 +108,7 @@ def trans(text_list, target_language="English", *, set_p=True,inst=None,stop=0,s
                     if not set_p:
                         tools.set_process_box(text=result + "\n",func_name="fanyi",type="set")
                     continue
-               
+
                 sep_res = tools.cleartext(result).split("\n")
                 raw_len = len(it)
                 sep_len = len(sep_res)
@@ -151,7 +130,7 @@ def trans(text_list, target_language="English", *, set_p=True,inst=None,stop=0,s
                     target_text["srts"]+=tmp
 
             except Exception as e:
-                err=str(e)+f',{api_url=}'
+                err=str(e)
                 break
             else:
                 # 未出错
@@ -164,16 +143,14 @@ def trans(text_list, target_language="English", *, set_p=True,inst=None,stop=0,s
 
 
     if err:
-        config.logger.error(f'[localllm]翻译请求失败:{err=}')
-        if err.lower().find("Connection error")>-1:
-            err='连接失败 '+err
-        raise Exception(f'localllm:{err}')
+        config.logger.error(f'[字节火山引擎]翻译请求失败:{err=}')
+        raise Exception(f'字节火山引擎:{err}')
 
     if not is_srt:
         return "\n".join(target_text["0"])
 
     if len(target_text['srts']) < len(text_list)/2:
-        raise Exception(f'localllm:{config.transobj["fanyicuowu2"]},{config.params["localllm_api"]}')
+        raise Exception(f'字节火山引擎:{config.transobj["fanyicuowu2"]}')
 
     for i, it in enumerate(text_list):
         if i< len(target_text['srts']):

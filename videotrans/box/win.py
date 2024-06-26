@@ -519,7 +519,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def model_type_change(self):
         if self.shibie_model_type.currentIndex() == 1:
             model_type = 'openai'
-            self.shibie_whisper_type.setDisabled(False)
+            self.shibie_whisper_type.setDisabled(True)
             self.shibie_model.setDisabled(False)
         elif self.shibie_model_type.currentIndex() == 2:
             model_type = 'GoogleSpeech'
@@ -591,7 +591,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 print(f"removename {str(e)}")
             '''
             self.shibie_text.clear()
-
+            '''
             if os.path.splitext(basename)[-1].lower() in [".mp4", ".avi", ".mov", ".mp3", ".flac", ".m4a", ".mov",
                                                           ".aac"]:
                 out_file = f"{config.TEMP_HOME}/{basename}.wav"
@@ -599,7 +599,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     os.makedirs(f"{config.TEMP_HOME}")
                 try:
                     self.shibie_ffmpeg_task = Worker([
-                        ['-y', '-i', file, '-vn', '-ac', '1', '-ar', '8000', out_file]
+                        ['-y', '-i', file, '-vn', '-ac', '1', '-ar', '16000', out_file]
                     ], "logs", self)
                     self.shibie_ffmpeg_task.start()
                     wait_list.append(out_file)
@@ -609,7 +609,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     self.disabled_shibie(False)
                     QMessageBox.critical(self, config.transobj['anerror'], str(e))
             else:
-                wait_list.append(file)
+            '''
+            wait_list.append(file)
 
         self.shibie_out_path = config.homedir + f"/recogn"
 
@@ -775,7 +776,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                                       tts_type=self.tts_type.currentText(),
                                       func_name="hecheng",
                                       voice_autorate=issrt and self.voice_autorate.isChecked(),
-                                      audio_ajust=issrt and self.audio_ajust.isChecked(),
                                       tts_issrt=issrt)
         self.hecheng_task.start()
         self.hecheng_startbtn.setText(config.transobj["running"])
@@ -786,10 +786,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def tts_issrt_change(self, state):
         if state:
             self.voice_autorate.setDisabled(False)
-            self.audio_ajust.setDisabled(False)
         else:
             self.voice_autorate.setDisabled(True)
-            self.audio_ajust.setDisabled(True)
 
     # tts类型改变
     def tts_type_change(self, type):
@@ -936,6 +934,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         config.params["chatgpt_key"] = self.settings.value("chatgpt_key", "")
         config.params["localllm_api"] = self.settings.value("localllm_api", "")
         config.params["localllm_key"] = self.settings.value("localllm_key", "")
+        config.params["zijiehuoshan_key"] = self.settings.value("zijiehuoshan_key", "")
         config.params["tencent_SecretId"] = self.settings.value("tencent_SecretId", "")
         config.params["tencent_SecretKey"] = self.settings.value("tencent_SecretKey", "")
         config.params["gemini_key"] = self.settings.value("gemini_key", "")
