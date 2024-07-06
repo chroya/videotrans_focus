@@ -1267,63 +1267,64 @@ def get_video_codec():
     if video_codec!=264:
         hhead='hevc'
     
-    # huggingface上ffmpeg环境有问题，直接指定吧
-    return f'libx{video_codec}'
+    # huggingface上ffmpeg环境有问题，
+    if(config.params['no_hw_accel']):
+        return f'libx{video_codec}'
 
-    # mp4_test=config.rootdir+"/videotrans/styles/no-remove.mp4"
-    # if not Path(mp4_test).is_file():
-    #     return f'libx{video_codec}'
-    # mp4_target=config.TEMP_DIR+"/test.mp4"
-    # codec=''
-    # if plat in ['Windows','Linux']:
-    #     import torch    
-    #     if torch.cuda.is_available():
-    #         codec=f'{hhead}_nvenc'
-    #     elif plat=='Windows':
-    #         codec=f'{hhead}_qsv'
-    #     elif plat=='Linux':
-    #         codec=f'{hhead}_vaapi'
-    # elif plat=='Darwin':
-    #     codec=f'{hhead}_videotoolbox'
+    mp4_test=config.rootdir+"/videotrans/styles/no-remove.mp4"
+    if not Path(mp4_test).is_file():
+        return f'libx{video_codec}'
+    mp4_target=config.TEMP_DIR+"/test.mp4"
+    codec=''
+    if plat in ['Windows','Linux']:
+        import torch    
+        if torch.cuda.is_available():
+            codec=f'{hhead}_nvenc'
+        elif plat=='Windows':
+            codec=f'{hhead}_qsv'
+        elif plat=='Linux':
+            codec=f'{hhead}_vaapi'
+    elif plat=='Darwin':
+        codec=f'{hhead}_videotoolbox'
 
-    # if not codec:
-    #     return f"libx{video_codec}"
+    if not codec:
+        return f"libx{video_codec}"
 
-    # try:
-    #     Path(config.TEMP_DIR).mkdir(exist_ok=True)
-    #     subprocess.run([
-    #         "ffmpeg",
-    #         "-y",
-    #         "-hide_banner",
-    #         "-ignore_unknown",
-    #         "-i",
-    #         mp4_test,
-    #         "-c:v",
-    #         codec,
-    #         mp4_target
-    #     ],
-    #     check=True,
-    #     creationflags=0 if sys.platform != 'win32' else subprocess.CREATE_NO_WINDOW)
-    # except Exception as e:
-    #     if sys.platform=='win32':
-    #         try:
-    #             codec=f"{hhead}_amf"
-    #             subprocess.run([
-    #                 "ffmpeg",
-    #                 "-y",
-    #                 "-hide_banner",
-    #                 "-ignore_unknown",
-    #                 "-i",
-    #                 mp4_test,
-    #                 "-c:v",
-    #                 codec,
-    #                 mp4_target
-    #             ],
-    #                 check=True,
-    #                 creationflags=0 if sys.platform != 'win32' else subprocess.CREATE_NO_WINDOW)
-    #         except Exception:
-    #             codec=f"libx{video_codec}"
-    # return codec
+    try:
+        Path(config.TEMP_DIR).mkdir(exist_ok=True)
+        subprocess.run([
+            "ffmpeg",
+            "-y",
+            "-hide_banner",
+            "-ignore_unknown",
+            "-i",
+            mp4_test,
+            "-c:v",
+            codec,
+            mp4_target
+        ],
+        check=True,
+        creationflags=0 if sys.platform != 'win32' else subprocess.CREATE_NO_WINDOW)
+    except Exception as e:
+        if sys.platform=='win32':
+            try:
+                codec=f"{hhead}_amf"
+                subprocess.run([
+                    "ffmpeg",
+                    "-y",
+                    "-hide_banner",
+                    "-ignore_unknown",
+                    "-i",
+                    mp4_test,
+                    "-c:v",
+                    codec,
+                    mp4_target
+                ],
+                    check=True,
+                    creationflags=0 if sys.platform != 'win32' else subprocess.CREATE_NO_WINDOW)
+            except Exception:
+                codec=f"libx{video_codec}"
+    return codec
 
 
 
@@ -1478,3 +1479,19 @@ def format_result(source_list,target_list,target_lang="zh"):
 # 删除翻译结果的特殊字符
 def cleartext(text):
     return text.replace('"','').replace("'",'').replace('&#39;','').replace('&quot;',"").strip()
+
+def get_role_list(tts_type):
+    if tts_type=="edgeTTS":
+        if not config.edgeTTS_rolelist:
+            get_edge_rolelist()
+        return config.edgeTTS_rolelist
+    elif tts_type=='ChatTTS':
+        # 后面补上chattts的
+        # if not config.ChatTTS_voicelist:
+        #     get_ChatTTS_voicelist()
+        return config.ChatTTS_voicelist
+    elif tts_type=='azure_TTS':
+        if not config.azure_TTS_voicelist:
+            get_azure_rolelist()
+        return config.AzureTTS_rolelist
+    
