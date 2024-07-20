@@ -12,7 +12,7 @@ from videotrans.util import tools
 from videotrans.util.tools import set_process, send_notification
 from pathlib import Path
 import re
-
+import threading
 
 class Worker(QThread):
     def __init__(self, *, parent=None, app_mode=None, txt=None):
@@ -59,17 +59,15 @@ class Worker(QThread):
     # 字幕嵌入视频
     def hebing(self):
         self.is_batch = False
-        set_process('hebing', 'add_process', btnkey="hebing")
+        set_process('', 'add_process', btnkey="hebing")
         self.precent = 1
         it = config.queue_mp4.pop()
-        print(f'{it=}')
         obj_format = tools.format_video(it.replace('\\', '/'), config.params['target_dir'])
         if obj_format['linshi_output'] != obj_format['output']:
             shutil.copy2(it, obj_format['source_mp4'])
         target_dir_mp4 = obj_format['output'] + f"/{obj_format['raw_noextname']}.mp4"
         if config.params['only_video']:
             target_dir_mp4 = os.path.dirname(obj_format['output']) + f"/{obj_format['raw_noextname']}.mp4"
-            print(f'{target_dir_mp4=}')
             shutil.rmtree(obj_format['output'],ignore_errors=True)
 
         video_info = tools.get_video_info(obj_format['source_mp4'])
@@ -86,10 +84,44 @@ class Worker(QThread):
             f.write(self.txt)
         os.chdir(config.rootdir)
         try:
+            # 开启进度线程
+            protxt=config.TEMP_DIR+f"/hebing{time.time()}.txt"
+            
+            def hebing_pro():
+                while 1:
+                    if self.precent>=100:
+                        return
+                    if not os.path.exists(protxt):
+                        time.sleep(1)
+                        continue
+                    with open(protxt,'r',encoding='utf-8') as f:
+                        content=f.read().strip().split("\n")
+                        if content[-1]=='progress=end':
+                            return
+                        idx=len(content)-1
+                        end_time="00:00:00"
+                        while idx>0:
+                            if content[idx].startswith('out_time='):
+                                end_time=content[idx].split('=')[1].strip()
+                                break
+                            idx-=1
+                        try:
+                            h,m,s=end_time.split(':')
+                        except Exception:
+                            time.sleep(1)
+                            continue
+                        else:
+                            self.precent=(int(h)*3600000+int(m)*60000+int(s[:2])*1000)*100/video_info['time']
+                            set_process('', btnkey="hebing")
+                            time.sleep(1)
+                        
+            threading.Thread(target=hebing_pro).start()       
             if config.params['subtitle_type'] in [0, 1, 3]:
                 # 硬字幕仅名字 需要和视频在一起
                 tools.runffmpeg([
                     "-y",
+                    "-progress",
+                    protxt,
                     "-i",
                     obj_format['source_mp4'],
                     "-c:v",
@@ -106,12 +138,12 @@ class Worker(QThread):
                 ])
             else:
                 # 软字幕
-                print(f"{config.params['source_language']=}")
                 subtitle_language = translator.get_subtitle_code(show_target=config.params['source_language'])
                 subtitle_language = "chi" if not subtitle_language or subtitle_language == '-' else subtitle_language
-                print(f'{subtitle_language=}')
                 tools.runffmpeg([
                     "-y",
+                    "-progress",
+                    protxt,
                     "-i",
                     obj_format['source_mp4'],
                     "-i",
@@ -136,10 +168,13 @@ class Worker(QThread):
         except Exception:
             pass
         self.precent = 100
+        os.chdir(config.rootdir)
+        # 退出进度线程
         set_process(f"{obj_format['output']}##hebing", 'succeed', btnkey="hebing")
         send_notification(config.transobj["zhixingwc"], target_dir_mp4)
         # 全部完成
         set_process("", 'end')
+        time.sleep(1)
         return None
 
     def run(self) -> None:
@@ -171,15 +206,6 @@ class Worker(QThread):
                 else:
                     Path(obj_format['output']).mkdir(parents=True, exist_ok=True)
 
-            if len(target_dir_mp4) >= 250:
-                set_process(config.transobj['chaochu255'] + "\n\n" + it, 'alert')
-                self.stop()
-                return
-            if re.search(r'[\&\+\:\?\|]+', it[2:]):
-                set_process(config.transobj['teshufuhao'] + "\n\n" + it, 'alert')
-                self.stop()
-                return
-
             videolist.append(obj_format)
             self.unidlist.append(obj_format['unid'])
             # 添加进度按钮 unid
@@ -208,6 +234,7 @@ class Worker(QThread):
                 video.prepare()
             except Exception as e:
                 err = f'{config.transobj["yuchulichucuo"]}:' + str(e)
+                config.logger.exception(err)
                 config.errorlist[video.init['btnkey']] = err
                 set_process(err, 'error', btnkey=video.init['btnkey'])
                 if self.is_batch:
@@ -225,6 +252,7 @@ class Worker(QThread):
                 video.recogn()
             except Exception as e:
                 err = f'{config.transobj["shibiechucuo"]}:' + str(e)
+                config.logger.exception(err)
                 config.errorlist[video.init['btnkey']] = err
                 set_process(err, 'error', btnkey=video.init['btnkey'])
                 continue
@@ -234,6 +262,7 @@ class Worker(QThread):
                 video.trans()
             except Exception as e:
                 err = f'{config.transobj["fanyichucuo"]}:' + str(e)
+                config.logger.exception(err)
                 config.errorlist[video.init['btnkey']] = err
                 set_process(err, 'error', btnkey=video.init['btnkey'])
                 continue
@@ -243,6 +272,7 @@ class Worker(QThread):
                 video.dubbing()
             except Exception as e:
                 err = f'{config.transobj["peiyinchucuo"]}:' + str(e)
+                config.logger.exception(err)
                 config.errorlist[video.init['btnkey']] = err
                 set_process(err, 'error', btnkey=video.init['btnkey'])
                 continue
@@ -252,6 +282,7 @@ class Worker(QThread):
                 video.hebing()
             except Exception as e:
                 err = f'{config.transobj["hebingchucuo"]}:' + str(e)
+                config.logger.exception(err)
                 config.errorlist[video.init['btnkey']] = err
                 set_process(err, 'error', btnkey=video.init['btnkey'])
                 continue
@@ -261,6 +292,7 @@ class Worker(QThread):
                 video.move_at_end()
             except Exception as e:
                 err = f'{config.transobj["hebingchucuo"]}:' + str(e)
+                config.logger.exception(err)
                 config.errorlist[video.init['btnkey']] = err
                 set_process(err, 'error', btnkey=video.init['btnkey'])
                 send_notification(err, f'{video.obj["raw_basename"]}')
@@ -273,17 +305,8 @@ class Worker(QThread):
         # 非批量直接结束
         config.queue_mp4 = []
         set_process("", 'end')
-        # self._unlink_tmp()
-        # self.tasklist = {}
+        tools._unlink_tmp()
 
-    def _unlink_tmp(self):
-        if not os.path.isdir(config.TEMP_DIR):
-            return
-        for it in os.listdir(config.TEMP_DIR):
-            if os.path.isfile(config.TEMP_DIR + f"/{it}"):
-                Path(config.TEMP_DIR + f"/{it}").unlink(missing_ok=True)
-            else:
-                shutil.rmtree(config.TEMP_DIR + f"/{it}", ignore_errors=True)
 
     def wait_end(self):
         # 开始等待任务执行完毕
@@ -297,13 +320,6 @@ class Worker(QThread):
             # 当前 video 执行完毕
             if unid in config.unidlist:
                 pass
-                # 成功完成
-                # if unid  in config.errorlist and config.errorlist[unid]:
-                # send_notification("Succeed", f'{video.obj["raw_basename"]}')
-                # if len(config.queue_mp4) > 0:
-                # config.queue_mp4.pop(0)
-                # else:
-                # send_notification(config.errorlist[unid], f'{video.obj["raw_basename"]}')
             else:
                 # 未结束重新插入
                 self.unidlist.append(unid)
@@ -312,11 +328,9 @@ class Worker(QThread):
         config.queue_mp4 = []
 
         set_process("", 'end')
-        self._unlink_tmp()
-        # self.tasklist = {}
+        tools._unlink_tmp()
 
     def stop(self):
         set_process("", 'stop')
         config.queue_mp4 = []
-        self._unlink_tmp()
-        # self.tasklist = {}
+        tools._unlink_tmp()

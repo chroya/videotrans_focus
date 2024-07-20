@@ -121,7 +121,7 @@ def trans(text_list, target_language="English", *, set_p=True, inst=None, stop=0
 
     try:
         genai.configure(api_key=config.params['gemini_key'])
-        model = genai.GenerativeModel('gemini-pro', safety_settings=safetySettings)
+        model = genai.GenerativeModel('gemini-1.5-pro', safety_settings=safetySettings)
     except Exception as e:
         err = str(e)
         raise Exception(f'请正确设置http代理,{err}')
@@ -136,7 +136,7 @@ def trans(text_list, target_language="English", *, set_p=True, inst=None, stop=0
 
 
     prompt = config.params['gemini_template']
-    with open(config.rootdir+"/videotrans/gemini.txt",'r',encoding="utf-8") as f:
+    with open(config.rootdir+"/videotrans/gemini"+("" if config.defaulelang=='zh' else '-en')+".txt",'r',encoding="utf-8") as f:
         prompt=f.read().replace('{lang}', target_language)
 
     # 切割为每次翻译多少行，值在 set.ini中设定，默认10
@@ -187,6 +187,13 @@ def trans(text_list, target_language="English", *, set_p=True, inst=None, stop=0
                 sep_res = tools.cleartext(result).split("\n")
                 raw_len=len(it)
                 sep_len=len(sep_res)
+                # 如果返回结果相差原字幕仅少一行，对最后一行进行拆分
+                if sep_len+1==raw_len:
+                    config.logger.error('如果返回结果相差原字幕仅少一行，对最后一行进行拆分')
+                    sep_res=tools.split_line(sep_res)
+                    if sep_res:
+                        sep_len=len(sep_res)
+                
                 # 如果返回数量和原始语言数量不一致，则重新切割
                 if sep_len<raw_len:
                     config.logger.error(f'翻译前后数量不一致，需要重新按行翻译')
@@ -194,6 +201,16 @@ def trans(text_list, target_language="English", *, set_p=True, inst=None, stop=0
                     for line_res in it:
                         sep_res.append(get_content(line_res.strip(),model=model,prompt=prompt))
 
+                
+
+            except Exception as e:
+                err = str(e)
+                if err.find('Resource has been exhausted')>-1:
+                    time.sleep(60)
+                break
+            else:
+                # 未出错
+                config.logger.info(f'{sep_res=}\n{it=}')
                 for x, result_item in enumerate(sep_res):
                     if x < len(it):
                         target_text["srts"].append(result_item.strip().rstrip(end_point))
@@ -206,12 +223,6 @@ def trans(text_list, target_language="English", *, set_p=True, inst=None, stop=0
                 if len(sep_res) < len(it):
                     tmp = ["" for x in range(len(it) - len(sep_res))]
                     target_text["srts"] += tmp
-
-            except Exception as e:
-                err = str(e)
-                break
-            else:
-                # 未出错
                 err = ''
                 iter_num = 0
                 index = 0 if i <= 1 else i
@@ -230,7 +241,7 @@ def trans(text_list, target_language="English", *, set_p=True, inst=None, stop=0
 
     if len(target_text['srts']) < len(text_list) / 2:
         raise Exception(f'Gemini:{config.transobj["fanyicuowu2"]}')
-
+    config.logger.info(f'{text_list=}\n{target_text["srts"]}')
     for i, it in enumerate(text_list):
         if i < len(target_text['srts']):
             text_list[i]['text'] = target_text['srts'][i]

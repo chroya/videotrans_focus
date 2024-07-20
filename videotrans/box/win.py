@@ -22,6 +22,7 @@ import shutil
 from videotrans.ui.toolboxen import Ui_MainWindow
 from videotrans.util.tools import get_azure_rolelist, get_edge_rolelist
 from pathlib import Path
+import threading
 
 
 class MainWindow(QMainWindow, Ui_MainWindow):
@@ -29,6 +30,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         super(MainWindow, self).__init__(parent)
         self.setupUi(self)
         self.initSize = None
+        self.precent_hb=0
         self.shibie_out_path = None
         self.hecheng_files = []
         self.fanyi_files = []
@@ -307,7 +309,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     self.shibie_startbtn.setText(config.transobj["zhixingwc"])
                     self.shibie_dropbtn.setText(config.transobj['quanbuend'] + ". " + config.transobj['xuanzeyinshipin'])
                 else:
-                    self.shibie_dropbtn.setText(data['text'])
+                    QMessageBox.critical(self,config.transobj['anerror'],data['text'])
             else:
                 self.shibie_startbtn.setText(data['text'])
         elif func == 'hecheng':
@@ -353,10 +355,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             return QMessageBox.critical(self, config.transobj['anerror'], config.transobj['selectvideodir'])
         file = self.yspfl_video_wrap.filepath
         basename = os.path.basename(file)
-        #rs, newfile, base = tools.rename_move(file, is_dir=False)
-        #if rs:
-        #    file = newfile
-        #    basename = base
+
         video_out = f"{config.homedir}/{basename}"
         if not os.path.exists(video_out):
             os.makedirs(video_out, exist_ok=True)
@@ -403,6 +402,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.ysphb_srtinput.setText(fname)
 
     def ysphb_start_fun(self):
+        self.precent_hb=0
+        config.settings = config.parse_init()
         # 启动合并
         videofile = self.ysphb_videoinput.text()
         basename = os.path.basename(videofile)
@@ -441,19 +442,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if not os.path.exists(f'{config.TEMP_DIR}'):
             os.makedirs(f'{config.TEMP_DIR}', exist_ok=True)
         tmpname = f'{config.TEMP_DIR}/{time.time()}.mp4'
-        tmpname_conver = f'{config.TEMP_DIR}/box-conver.mp4'
         video_info = tools.get_video_info(videofile)
-        video_codec= 'h264' if config.settings['video_codec']==264 else 'hevc'
-        if videofile[-3:].lower() != 'mp4' or video_info['video_codec_name'] != video_codec or (
-                video_info['streams_audio'] > 0 and video_info['audio_codec_name'] != 'aac'):
-            try:
-                tools.conver_mp4(videofile, tmpname_conver, is_box=True)
-            except Exception as e:
-                QMessageBox.critical(self, config.transobj['anerror'], str(e))
-                self.ysphb_startbtn.setText(config.transobj["start"])
-                self.ysphb_startbtn.setDisabled(False)
-                return False
-            videofile = tmpname_conver
 
         if wavfile:
             # 视频里是否有音轨 并且保留原声音
@@ -474,15 +463,51 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                      tmpname if srtfile else f'{savedir}/{basename}.mp4']]
 
         if srtfile:
-            # srtfile = srtfile.replace('\\', '/').replace(':', '\\\\:')
             basename = os.path.basename(srtfile)
             shutil.copy2(srtfile, config.rootdir + f"/{basename}.srt")
             os.chdir(config.rootdir)
+            protxt=config.TEMP_DIR+f"/compose{time.time()}.txt"
+            video_time=tools.get_video_duration(os.path.normpath(tmpname if wavfile else videofile))
+            def hebing_pro():
+                while 1:
+                    if self.precent_hb>=100:
+                        return
+                    if not os.path.exists(protxt):
+                        time.sleep(1)
+                        continue
+                    with open(protxt,'r',encoding='utf-8') as f:
+                        content=f.read().strip().split("\n")
+                        if content[-1]=='progress=end':
+                            return
+                        idx=len(content)-1
+                        end_time="00:00:00"
+                        while idx>0:
+                            if content[idx].startswith('out_time='):
+                                end_time=content[idx].split('=')[1].strip()
+                                break
+                            idx-=1
+                        try:
+                            h,m,s=end_time.split(':')
+                        except Exception:
+                            time.sleep(1)
+                            continue
+                        else:
+                            h,m,s=end_time.split(':')
+                            precent=round((int(h)*3600000+int(m)*60000+int(s[:2])*1000)*100/video_time,2)
+                            if self.precent_hb+precent<99.9:
+                                self.precent_hb+=precent
+
+                            print(f'{self.precent_hb=}')
+                            self.ysphb_startbtn.setText(f'{self.precent_hb}%')
+                            time.sleep(1)
+
+            threading.Thread(target=hebing_pro).start()
             cmds.append(
-                # ['-y', '-i', tmpname if wavfile else videofile, "-vf", f"subtitles={basename}.srt", '-c:v', 'libx264',
-                # '-c:a', 'copy', f'{savedir}/{basename}.mp4']
                 [
                     "-y",
+                    
+                    "-progress",
+                    protxt,
                     "-i",
                     os.path.normpath(tmpname if wavfile else videofile),
 
@@ -540,6 +565,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # tab-3 语音识别 预执行，检查
     def shibie_start_fun(self):
+        config.settings = config.parse_init()
         model = self.shibie_model.currentText()
         split_type_index = self.shibie_whisper_type.currentIndex()
         if self.shibie_model_type.currentIndex() == 1:
@@ -658,7 +684,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         
         
         voice_file = f"{voice_dir}/{tts_type}-{lang}-{lujing_role}-{volume}-{pitch}.mp3"
-        if tts_type in ['GPT-SoVITS','ChatTTS']:
+        if tts_type in ['GPT-SoVITS','ChatTTS','FishTTS','CosyVoice']:
             voice_file += '.wav'
 
         obj = {
@@ -672,16 +698,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "pitch":pitch,
         }
         
-        if tts_type == 'clone-voice' and role == 'clone':
+        if role == 'clone':
             return
-        # 测试能否连接clone
-        if tts_type == 'clone-voice':
-            try:
-                tools.get_clone_role(set_p=True)
-            except:
-                QMessageBox.critical(self, config.transobj['anerror'],
-                                     config.transobj['You must deploy and start the clone-voice service'])
-                return
 
         def feed(d):
             QMessageBox.critical(self, config.transobj['anerror'], d)
@@ -693,6 +711,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # tab-4 语音合成
     def hecheng_start_fun(self):
+        config.settings = config.parse_init()
         txt = self.hecheng_plaintext.toPlainText().strip()
         language = self.hecheng_language.currentText()
         role = self.hecheng_role.currentText()
@@ -708,11 +727,26 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if tts_type == 'openaiTTS' and not config.params['chatgpt_key']:
             return QMessageBox.critical(self, config.transobj['anerror'],
                                         config.transobj['bixutianxie'] + "chatGPT key")
+        if tts_type == '302.ai' and not config.params['ai302tts_key']:
+            return QMessageBox.critical(self, config.transobj['anerror'],
+                                        config.transobj['bixutianxie'] + " 302.ai 的 API KEY")
         if tts_type == 'GPT-SoVITS' and langcode[:2] not in ['zh', 'ja', 'en']:
             # 除此指望不支持
             tts_type = 'edgeTTS'
             self.tts_type.setCurrentText('edgeTTS')
             QMessageBox.critical(self, config.transobj['anerror'], config.transobj['nogptsovitslanguage'])
+            return
+        if tts_type == 'CosyVoice' and langcode[:2] not in ['zh', 'ja', 'en','ko']:
+            # 除此指望不支持
+            tts_type = 'edgeTTS'
+            self.tts_type.setCurrentText('edgeTTS')
+            QMessageBox.critical(self, config.transobj['anerror'],'CosyVoice仅支持中英日韩四种语言' if config.defaulelang=='zh' else 'CosyVoice only supports Chinese, English, Japanese and Korean')
+            return
+        if tts_type == 'FishTTS' and langcode[:2] not in ['zh', 'ja', 'en']:
+            # 除此指望不支持
+            tts_type = 'edgeTTS'
+            self.tts_type.setCurrentText('edgeTTS')
+            QMessageBox.critical(self, config.transobj['anerror'], 'FishTTS仅可用于中日英配音')
             return
         if tts_type == 'ChatTTS' and langcode[:2] not in ['zh', 'en']:
             # 除此指望不支持
@@ -746,6 +780,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             os.makedirs(f"{config.homedir}/tts", exist_ok=True)
 
         wavname = f"{config.homedir}/tts/{filename}"
+        print(f'{wavname=}')
 
 
 
@@ -801,6 +836,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         elif type == "openaiTTS":
             self.hecheng_role.clear()
             self.hecheng_role.addItems(config.params['openaitts_role'].split(","))
+        elif type == "302.ai":
+            self.hecheng_role.clear()
+            self.hecheng_role.addItems(config.params['ai302tts_role'].split(","))
         elif type == 'elevenlabsTTS':
             self.hecheng_role.clear()
             self.hecheng_role.addItems(config.params['elevenlabstts_role'])
@@ -823,6 +861,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             rolelist = tools.get_gptsovits_role()
             self.hecheng_role.clear()
             self.hecheng_role.addItems(list(rolelist.keys()) if rolelist else ['GPT-SoVITS'])
+        elif type == 'CosyVoice':
+            if code and code != '-' and code[:2] not in ['zh', 'ja', 'en','ko']:
+                self.tts_type.setCurrentText('edgeTTS')
+                QMessageBox.critical(self, config.transobj['anerror'], 'CosyVoice仅支持中英日韩四种语言' if config.defaulelang=='zh' else 'CosyVoice only supports Chinese, English, Japanese and Korean')
+                return
+            rolelist = tools.get_cosyvoice_role()
+            del rolelist["clone"]
+            self.hecheng_role.clear()
+            self.hecheng_role.addItems(list(rolelist.keys()) if rolelist else ['-'])
+        elif type == 'FishTTS':
+            if code and code != '-' and code[:2] not in ['zh', 'ja', 'en']:
+                self.tts_type.setCurrentText('edgeTTS')
+                QMessageBox.critical(self, config.transobj['anerror'], 'FishTTS仅可用于中日英配音')
+                return
+            rolelist = tools.get_fishtts_role()
+            self.hecheng_role.clear()
+            self.hecheng_role.addItems(list(rolelist.keys()) if rolelist else ['FishTTS'])
 
     # 合成语言变化，需要获取到角色
     def hecheng_language_fun(self, t):
@@ -833,10 +888,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             QMessageBox.critical(self, config.transobj['anerror'], config.transobj['nogptsovitslanguage'])
             self.tts_type.setCurrentText('edgeTTS')
             return
+        if code and code != '-' and tts_type == 'CosyVoice' and code[:2] not in ['zh', 'ja', 'en','ko']:
+            # 除此指望不支持
+            QMessageBox.critical(self, config.transobj['anerror'], 'CosyVoice仅支持中英日韩四种语言' if config.defaulelang=='zh' else 'CosyVoice only supports Chinese, English, Japanese and Korean')
+            self.tts_type.setCurrentText('edgeTTS')
+            return
         if code and code != '-' and tts_type == 'ChatTTS' and code[:2] not in ['zh', 'en']:
             self.tts_type.setCurrentText('edgeTTS')
             # 除此指望不支持
             QMessageBox.critical(self, config.transobj['anerror'], config.transobj['onlycnanden'])
+            return
+        if code and code != '-' and tts_type == 'FishTTS' and code[:2] not in ['zh', 'ja', 'en']:
+            self.tts_type.setCurrentText('edgeTTS')
+            # 除此指望不支持
+            QMessageBox.critical(self, config.transobj['anerror'], 'FishTTS仅可用于中日英配音')
             return
 
         if tts_type not in ["edgeTTS", "AzureTTS"]:
@@ -896,6 +961,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # 翻译开始
     def fanyi_start_fun(self):
+        config.settings = config.parse_init()
         target_language = self.fanyi_target.currentText()
         translate_type = self.fanyi_translate_type.currentText()
         if target_language == '-':
@@ -921,6 +987,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         config.params["deeplx_address"] = self.settings.value("deeplx_address", "")
         config.params["chatgpt_api"] = self.settings.value("chatgpt_api", "")
         config.params["chatgpt_key"] = self.settings.value("chatgpt_key", "")
+        config.params["chatgpt_model"] = self.settings.value("chatgpt_model", "")
+        config.params["ai302_key"] = self.settings.value("ai302_key", "")
+        config.params["ai302_model"] = self.settings.value("ai302_model", "")
         config.params["localllm_api"] = self.settings.value("localllm_api", "")
         config.params["localllm_key"] = self.settings.value("localllm_key", "")
         config.params["zijiehuoshan_key"] = self.settings.value("zijiehuoshan_key", "")

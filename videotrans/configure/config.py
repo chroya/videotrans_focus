@@ -41,119 +41,46 @@ logs_path=root_path/"logs"
 logs_path.mkdir(parents=True, exist_ok=True)
 LOGS_DIR = logs_path.as_posix()
 
-logging.basicConfig(
-    level=logging.INFO,
-    filename=f'{rootdir}/logs/video-{datetime.datetime.now().strftime("%Y%m%d")}.log',
-    encoding="utf-8",
-    filemode="a")
 logger = logging.getLogger('VideoTrans')
 
-def parse_init():
-    settings = {
-        "lang": defaulelang,
-        "dubbing_thread": 3,
-        "trans_thread": 15,
-        "countdown_sec": 30,
-        "cuda_com_type": "float32",
-        "whisper_threads": 4,
-        "whisper_worker": 1,
-        "beam_size": 1,
-        "best_of": 1,
-        "vad":True,
-        "temperature":1,
-        "condition_on_previous_text":False,
-        "crf":13,
-        "video_codec":264,
-        "retries":2,
-        "chatgpt_model":"gpt-3.5-turbo,gpt-4,gpt-4-turbo-preview,qwen",
-        "separate_sec":600,
-        "audio_rate":100,
-        "video_rate":20,
-        "initial_prompt_zh":"",
-        "fontsize":16,
-        "fontname":"黑体",
-        "fontcolor":"&HFFFFFF",
-        "fontbordercolor":"&H000000",
-        "subtitle_bottom":0,
-        "voice_silence":200,
-        "interval_split":6,
-        "cjk_len":24,
-        "other_len":36,
-        "backaudio_volume":0.5,
-        "overall_silence":2100,
-        "overall_maxsecs":3,
-        "remove_srt_silence":False,
-        "remove_silence":True,
-        "remove_white_ms":100,
-        "vsync":"passthrough",
-        "force_edit_srt":True,
-        "loop_backaudio":False,
-        "chattts_voice":'1111,2222,3333,4444,5555,6666,7777,8888,9999,4099,5099,6653,7869',
-        "cors_run":True
-    }
-    file = root_path/'videotrans/set.ini'
-    if file.exists():
-        try:
-            with file.open('r', encoding="utf-8") as f:
-                # 遍历.ini文件中的每个section
-                for it in f.readlines():
-                    
-                    it = it.strip()
-                    if not it or it.startswith(';'):
-                        continue
-                    key,value = it.split('=', maxsplit=1)
-                    # 遍历每个section中的每个option
-                    key = key.strip()
-                    value = value.strip()
-                    if re.match(r'^\d+$', value):
-                        settings[key] = int(value)
-                    elif re.match(r'^\d+\.\d$', value):
-                        settings[key] = round(float(value),1)
-                    elif value.lower() == 'true':
-                        settings[key] = True
-                    elif value.lower() == 'false':
-                        settings[key] = False
-                    else:
-                        settings[key] = str(value.lower()) if value else None
-        except Exception as e:
-            logger.error(f'set.ini 中有语法错误:{str(e)}')
-        if isinstance(settings['fontsize'],str) and settings['fontsize'].find('px')>0:
-            settings['fontsize']=int(settings['fontsize'].replace('px',''))
-    return settings
+## 
 
+# 配置日志格式
+log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
-# 语言
-try:
-    defaulelang = locale.getdefaultlocale()[0][:2].lower()
-except Exception:
-    defaulelang = "zh"
+# 创建日志记录器
+#logger = logging.getLogger('MyLogger')
+logger.setLevel(logging.INFO)  # 设置日志级别
 
-# 初始化一个字典变量
-settings = parse_init()
+# 创建文件处理器，并设置级别为DEBUG
+file_handler = logging.FileHandler(f'{rootdir}/logs/video-{datetime.datetime.now().strftime("%Y%m%d")}.log',encoding='utf-8')
+file_handler.setLevel(logging.INFO)  # 只记录ERROR及以上级别的日志
 
+# 创建控制台处理器，并设置级别为DEBUG
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
 
-# default language 如果 ini中设置了，则直接使用，否则自动判断
-if settings['lang']:
-    defaulelang = settings['lang'].lower()
-# 语言代码文件是否存在
-lang_path=root_path/f'videotrans/language/{defaulelang}.json'
-if not lang_path.exists():
-    defaulelang = "en"
-    lang_path=root_path/f'videotrans/language/{defaulelang}.json'
+# 设置日志格式
+formatter = logging.Formatter(log_format)
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
 
-obj = json.load(lang_path.open('r', encoding='utf-8'))
-# 交互语言代码
-transobj = obj["translate_language"]
-# 软件界面
-uilanglist = obj["ui_lang"]
-# 语言代码:语言显示名称
-langlist: dict = obj["language_code_list"]
-# 语言显示名称：语言代码
-rev_langlist = {code_alias: code for code, code_alias in langlist.items()}
-# 语言显示名称 list
-langnamelist = list(langlist.values())
-# 工具箱语言
-box_lang = obj['toolbox_lang']
+# 添加处理器到日志记录器
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+# 捕获所有未处理的异常
+def log_uncaught_exceptions(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        # 允许键盘中断（Ctrl+C）退出
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+
+    logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+
+# 安装自定义异常钩子
+sys.excepthook = log_uncaught_exceptions
+
 
 # ffmpeg
 if sys.platform == 'win32':
@@ -246,7 +173,8 @@ def parse_init():
         "crf":13,
         "video_codec":264,
         "retries":2,
-        "chatgpt_model":"gpt-3.5-turbo,gpt-4,gpt-4-turbo,gpt-4-turbo-preview,qwen",
+        "chatgpt_model":"gpt-4o-mini,gpt-4o,gpt-4,gpt-4-turbo,gpt-4-turbo-preview,qwen,moonshot-v1-8k,deepseek-chat",
+        "azure_model":"gpt-4o,gpt-4,gpt-35-turbo",
         "localllm_model":"qwen",
         "zijiehuoshan_model":"",
         "separate_sec":600,
@@ -274,7 +202,7 @@ def parse_init():
         "remove_white_ms":100,
         "vsync":"passthrough",
         "force_edit_srt":True,
-        "loop_backaudio":False,
+        "loop_backaudio":True,
         "azure_lines":150,
         "chattts_voice":'1111,2222,3333,4444,5555,6666,7777,8888,9999,4099,5099,6653,7869',
         "cors_run":True
@@ -347,6 +275,7 @@ model_list=re.split('\,|，',settings['model_list'])
 ChatTTS_voicelist=re.split('\,|，',settings['chattts_voice'])
 
 chatgpt_model_list = [ it.strip() for it in settings['chatgpt_model'].split(',') if it.strip()]
+azure_model_list = [ it.strip() for it in settings['azure_model'].split(',') if it.strip()]
 localllm_model_list = [ it.strip() for it in settings['localllm_model'].split(',') if it.strip()]
 zijiehuoshan_model_list = [ it.strip() for it in settings['zijiehuoshan_model'].split(',') if it.strip() ]
 if len(chatgpt_model_list)<1:
@@ -362,7 +291,10 @@ if len(zijiehuoshan_model_list)<1:
 # 存放 edget-tts 角色列表
 edgeTTS_rolelist = None
 AzureTTS_rolelist = None
+
 proxy = None
+
+
 # 配置
 params = {
     "source_mp4": "",
@@ -405,7 +337,7 @@ params = {
     "listen_text_pl": "Witam, mój drogi przyjacielu, mam nadzieję, że jesteś piękna każdego dnia!",
 
     "tts_type": "edgeTTS",  # 所选的tts==edge-tts:openaiTTS|coquiTTS|elevenlabsTTS
-    "tts_type_list": ["edgeTTS","ChatTTS","gtts","AzureTTS", "GPT-SoVITS","clone-voice","openaiTTS", "elevenlabsTTS","TTS-API"],
+    "tts_type_list": ["edgeTTS",'CosyVoice',"ChatTTS","302.ai","FishTTS","AzureTTS", "GPT-SoVITS","clone-voice","openaiTTS", "elevenlabsTTS","gtts","TTS-API"],
 
     "whisper_type": "all",
     "whisper_model": "tiny",
@@ -449,9 +381,10 @@ params = {
     "zijiehuoshan_template": "",
     "azure_api": "",
     "azure_key": "",
-    "azure_model": "gpt-3.5-turbo",
+    "azure_model": azure_model_list[0],
     "azure_template": "",
     "openaitts_role": openaiTTS_rolelist,
+    "ai302tts_role": openaiTTS_rolelist,
     "gemini_key": "",
     "gemini_template": "",
 
@@ -461,15 +394,23 @@ params = {
 
     "trans_api_url":"",
     "trans_secret":"",
-    
+
+    "ai302_key":"",
+    "ai302_model":"",
+    "ai302tts_key":"",
+    "ai302tts_model":"",
+    "ai302_template":"",
+
     "azure_speech_region":"",
     "azure_speech_key":"",
 
     "gptsovits_url":"",
     "gptsovits_role":"",
+    "cosyvoice_url":"",
+    "cosyvoice_role":"",
+    "fishtts_url":"",
+    "fishtts_role":"",
     "gptsovits_extra":"pyvideotrans"
-
-
 }
 
 chatgpt_path=root_path/'videotrans/chatgpt.txt'
@@ -483,3 +424,9 @@ params['chatgpt_template']=chatgpt_path.read_text(encoding='utf-8').strip()+"\n"
 params['azure_template']=azure_path.read_text(encoding='utf-8').strip()+"\n"
 params['gemini_template']=gemini_path.read_text(encoding='utf-8').strip()+"\n"
 
+params['ai302_template']=params['chatgpt_template']
+
+
+if not os.path.exists(rootdir + '/videotrans/cfg.json'):
+    with open(rootdir + '/videotrans/cfg.json','w',encoding='utf-8') as f:
+        f.write('{}')

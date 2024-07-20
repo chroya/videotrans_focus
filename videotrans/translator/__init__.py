@@ -4,12 +4,13 @@ from videotrans.configure import config
 
 GOOGLE_NAME = "Google"
 MICROSOFT_NAME = "Microsoft"
+AI302_NAME = "302.ai"
 BAIDU_NAME = "Baidu"
 DEEPL_NAME = "DeepL"
 DEEPLX_NAME = "DeepLx"
 OTT_NAME = "OTT"
 TENCENT_NAME = "Tencent"
-CHATGPT_NAME = "chatGPT"
+CHATGPT_NAME = "ChatGPT"
 LOCALLLM_NAME = "LocalLLM"
 ZIJIE_NAME = "ZijieHuoshan"
 AZUREGPT_NAME = "AzureGPT"
@@ -24,6 +25,7 @@ TRANSNAMES = [
     #FREECHATGPT_NAME,
     GOOGLE_NAME,
     ZIJIE_NAME,
+    AI302_NAME,
     BAIDU_NAME,
     DEEPL_NAME,
     CHATGPT_NAME,
@@ -46,7 +48,7 @@ LANG_CODE = {
         "zh",  # 腾讯通道
         "zh",  # OTT通道
         "zh-Hans",# 微软翻译
-        "Simplified Chinese" #AI翻译
+        "Simplified Chinese" if config.defaulelang !='zh' else '简体中文' #AI翻译
     ],
     "zh-tw": [
         "zh-tw",
@@ -56,7 +58,7 @@ LANG_CODE = {
         "zh-TW",
         "zt",
         "zh-Hant",
-        "Traditional Chinese"
+        "Traditional Chinese" if config.defaulelang !='zh' else '繁体中文'
     ],
     "en": [
         "en",
@@ -66,7 +68,7 @@ LANG_CODE = {
         "en",
         "en",
         "en",
-        "English language"
+        "English language" if config.defaulelang !='zh' else '英语'
     ],
     "fr": [
         "fr",
@@ -76,7 +78,7 @@ LANG_CODE = {
         "fr",
         "fr",
         "fr",
-        "French language"
+        "French language" if config.defaulelang !='zh' else '法语'
     ],
     "de": [
         "de",
@@ -86,7 +88,7 @@ LANG_CODE = {
         "de",
         "de",
         "de",
-        "German language"
+        "German language" if config.defaulelang !='zh' else '德语'
     ],
     "ja": [
         "ja",
@@ -96,7 +98,7 @@ LANG_CODE = {
         "ja",
         "ja",
         "ja",
-        "Japanese language"
+        "Japanese language" if config.defaulelang !='zh' else '日语'
     ],
     "ko": [
         "ko",
@@ -106,7 +108,7 @@ LANG_CODE = {
         "ko",
         "ko",
         "ko",
-        "Korean language"
+        "Korean language" if config.defaulelang !='zh' else '韩语'
     ],
     "ru": [
         "ru",
@@ -116,7 +118,7 @@ LANG_CODE = {
         "ru",
         "ru",
         "ru",
-        "Russian language"
+        "Russian language" if config.defaulelang !='zh' else '俄罗斯语'
     ],
     "es": [
         "es",
@@ -126,7 +128,7 @@ LANG_CODE = {
         "es",
         "es",
         "es",
-        "Spanish language"
+        "Spanish language" if config.defaulelang !='zh' else '西班牙语'
     ],
     "th": [
         "th",
@@ -136,7 +138,7 @@ LANG_CODE = {
         "th",
         "th",
         "th",
-        "Thai language"
+        "Thai language" if config.defaulelang !='zh' else '泰国语'
     ],
     "it": [
         "it",
@@ -146,17 +148,17 @@ LANG_CODE = {
         "it",
         "it",
         "it",
-        "Italian language"
+        "Italian language" if config.defaulelang !='zh' else '意大利语'
     ],
     "pt": [
-        "pt",
+        "pt",# pt-PT
         "por",
         "pt",
         "PT",
         "pt",
         "pt",
         "pt",
-        "Portuguese language"
+        "Portuguese language" if config.defaulelang !='zh' else '葡萄牙语'
     ],
     "vi": [
         "vi",
@@ -166,7 +168,7 @@ LANG_CODE = {
         "vi",
         "No",
         "vi",
-        "Vietnamese language"
+        "Vietnamese language" if config.defaulelang !='zh' else '越南语'
     ],
     "ar": [
         "ar",
@@ -176,7 +178,7 @@ LANG_CODE = {
         "ar",
         "ar",
         "ar",
-        "Arabic language"
+        "Arabic language" if config.defaulelang !='zh' else '阿拉伯语'
     ],
     "tr": [
         "tr",
@@ -186,7 +188,7 @@ LANG_CODE = {
         "tr",
         "tr",
         "tr",
-        "Turkish language"
+        "Turkish language" if config.defaulelang !='zh' else '土耳其语'
     ],
     "hi": [
         "hi",
@@ -196,7 +198,7 @@ LANG_CODE = {
         "hi",
         "hi",
         "hi",
-        "Hindi language"
+        "Hindi language" if config.defaulelang !='zh' else '印度语'
     ],
     "hu": [
         "hu",
@@ -206,7 +208,7 @@ LANG_CODE = {
         "No",
         "No",
         "hu",
-        "Hungarian language"
+        "Hungarian language" if config.defaulelang !='zh' else '匈牙利语'
     ],
     "uk":[
         "uk",
@@ -216,7 +218,7 @@ LANG_CODE = {
         "No",#腾讯
         "No",#ott
         "uk",#微软
-        "Ukrainian language"
+        "Ukrainian language" if config.defaulelang !='zh' else '乌克兰语'
     ],
     "id":[
         "id",
@@ -226,7 +228,7 @@ LANG_CODE = {
         "id",
         "No",
         "id",
-        "Indonesian language"
+        "Indonesian language" if config.defaulelang !='zh' else '印度尼西亚语'
     ],
     "ms":[
         "ms",
@@ -236,7 +238,7 @@ LANG_CODE = {
         "ms",
         "No",
         "ms",
-        "Malay language"
+        "Malay language" if config.defaulelang !='zh' else '马来西亚语'
     ],
     "kk":[
         "kk",
@@ -246,7 +248,7 @@ LANG_CODE = {
         "No",
         "No",
         "kk",
-        "Kazakh language"
+        "Kazakh language" if config.defaulelang !='zh' else '哈萨克语'
     ],
     "cs":[
         "cs",
@@ -256,7 +258,7 @@ LANG_CODE = {
         "No",
         "No",
         "cs",
-        "Czech language"
+        "Czech language" if config.defaulelang !='zh' else '捷克语'
     ],
     "pl":[
         "pl",
@@ -266,7 +268,7 @@ LANG_CODE = {
         "No",
         "No",
         "pl",
-        "Polish language"
+        "Polish language" if config.defaulelang !='zh' else '波兰语'
     ]
 }
 
@@ -307,7 +309,7 @@ def get_source_target_code(*, show_source=None, show_target=None, translate_type
         return (source_list[3] if source_list else "-", target_list[3] if target_list else "-")
     elif lower_translate_type == TENCENT_NAME.lower():
         return (source_list[4] if source_list else "-", target_list[4] if target_list else "-")
-    elif lower_translate_type in [FREECHATGPT_NAME.lower(),CHATGPT_NAME.lower(), AZUREGPT_NAME.lower(), GEMINI_NAME.lower(),LOCALLLM_NAME.lower(),ZIJIE_NAME.lower()]:
+    elif lower_translate_type in [CHATGPT_NAME.lower(), AZUREGPT_NAME.lower(), GEMINI_NAME.lower(),LOCALLLM_NAME.lower(),ZIJIE_NAME.lower(),AI302_NAME.lower()]:
        return (source_list[7] if source_list else "-", target_list[7] if target_list else "-")
     elif lower_translate_type == OTT_NAME.lower():
         return (source_list[5] if source_list else "-", target_list[5] if target_list else "-")
@@ -327,6 +329,9 @@ def is_allow_translate(*, translate_type=None, show_target=None, only_key=False)
 
     if lower_translate_type == CHATGPT_NAME.lower() and not config.params['chatgpt_key']:
         return config.transobj['chatgptkeymust']
+    if lower_translate_type == AI302_NAME.lower() and not config.params['ai302_key']:
+        return '必须填写 302.ai 平台的 sk'
+
     if lower_translate_type == LOCALLLM_NAME.lower() and not config.params['localllm_api']:
         return '必须填写本地大模型API地址' if config.defaulelang=='zh' else 'Please input Local LLM API url'
     if lower_translate_type == ZIJIE_NAME.lower() and (not config.params['zijiehuoshan_model'].strip() or not config.params['zijiehuoshan_key'].strip()):
@@ -414,6 +419,8 @@ def run(*, translate_type=None, text_list=None, target_language_name=None, set_p
         from videotrans.translator.tencent import trans
     elif lower_translate_type == CHATGPT_NAME.lower():
         from videotrans.translator.chatgpt import trans
+    elif lower_translate_type == AI302_NAME.lower():
+        from videotrans.translator.ai302 import trans
     elif lower_translate_type == LOCALLLM_NAME.lower():
         from videotrans.translator.localllm import trans
     elif lower_translate_type == ZIJIE_NAME.lower():
