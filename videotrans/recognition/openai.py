@@ -23,7 +23,7 @@ def recogn(*,
            set_p=True,
            inst=None,
            is_cuda=None):
-    print('openai模式')
+    config.logger.info('openai模式')
     if set_p:
         tools.set_process(config.transobj['fengeyinpinshuju'], btnkey=inst.init['btnkey'] if inst else "")
     if config.exit_soft or (config.current_status != 'ing' and config.box_recogn != 'ing'):
@@ -120,6 +120,8 @@ def recogn(*,
                                   condition_on_previous_text=config.settings['condition_on_previous_text']
             )
             for segment in result['segments']:
+                if len(segment['words'])<1:
+                    continue
                 if len(segment['text'].strip()) <= maxlen:
                     tmp = {
                         "line": len(raws) + 1,
@@ -143,6 +145,8 @@ def recogn(*,
                             "text": word["word"]
                         }
                         continue
+                    if not word['word']:
+                        continue
                     if word['word'][0] in flag:
                         cur['end_time']=int(word["start"] * 1000)+start_time
                         if cur['end_time']-cur['start_time']<1500:
@@ -151,6 +155,9 @@ def recogn(*,
                         cur[ 'time'] = f'{tools.ms_to_time_string(ms=cur["start_time"])} --> {tools.ms_to_time_string(ms=cur["end_time"])}'
                         cur['text']=cur['text'].strip()
                         append_raws(cur)
+                        if len(word['word'])<2:
+                            cur=None
+                            continue
                         cur = {
                             "line": len(raws) + 1,
                             "start_time": int(word["start"] * 1000)+start_time,
@@ -181,6 +188,7 @@ def recogn(*,
                         append_raws(cur)
 
         except Exception as e:
+            config.logger.exception(e)
             raise
     if set_p:
         tools.set_process(f"{config.transobj['yuyinshibiewancheng']} / {len(raws)}", 'logs',btnkey=inst.init['btnkey'] if inst else "")

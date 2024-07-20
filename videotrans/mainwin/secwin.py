@@ -91,9 +91,6 @@ class SecWindow():
 
     # 配音速度改变时，更改全局
     def voice_rate_changed(self, text):
-        # text = str(text).replace('+', '').replace('%', '').strip()
-        # text = 0 if not text else int(text)
-        # text = f'+{text}%' if text >= 0 else f'{text}%'
         config.params['voice_rate'] = f'+{text}%' if text >= 0 else f'{text}%'
 
     # 简单新手模式
@@ -124,6 +121,7 @@ class SecWindow():
         self.hide_show_element(self.main.layout_target_language, True)
         # 配音角色
         self.main.tts_type.setCurrentText('edgeTTS')
+        self.hide_show_element(self.main.layout_voice_role, True)
         # tts类型
         self.hide_show_element(self.main.layout_tts_type, False)
         # 试听按钮
@@ -319,7 +317,7 @@ class SecWindow():
     def set_zimu_video(self):
         self.main.action_zimu_video.setChecked(True)
         self.main.app_mode = 'hebing'
-        self.main.show_tips.setText(config.transobj['zimu_video'])
+        self.main.show_tips.setText('原始语言选择字幕文字所属语言' if config.defaulelang=='zh' else 'Choose the language of the subtitles in the source language')
         self.main.startbtn.setText(config.transobj['kaishihebing'])
         self.main.action_zimu_video.setChecked(True)
         self.main.action_xinshoujandan.setChecked(False)
@@ -648,6 +646,8 @@ class SecWindow():
                     self.main.subform.set_transapi()
                 elif name == translator.CHATGPT_NAME:
                     self.main.subform.set_chatgpt_key()
+                elif name == translator.AI302_NAME:
+                    self.main.subform.set_ai302_key()
                 elif name == translator.LOCALLLM_NAME:
                     self.main.subform.set_localllm_key()
                 elif name == translator.GEMINI_NAME:
@@ -751,17 +751,17 @@ class SecWindow():
 
     def clearcache(self):
         if config.defaulelang == 'zh':
-            question = tools.show_popup('清理后需要重启软件', '确认进行清理？')
+            question = tools.show_popup('确认进行清理？','清理后需要重启软件并重新填写设置菜单中各项配置信息')
 
         else:
-            question = tools.show_popup('The software needs to be restarted after cleaning', 'Confirm cleanup?')
+            question = tools.show_popup('Confirm cleanup?','The software needs to be restarted after cleaning')
 
         if question == QMessageBox.Yes:
             shutil.rmtree(config.TEMP_DIR, ignore_errors=True)
             shutil.rmtree(config.homedir + "/tmp", ignore_errors=True)
             tools.remove_qsettings_data()
             QMessageBox.information(self.main, 'Please restart the software' if config.defaulelang != 'zh' else '请重启软件',
-                                    'Please restart the software' if config.defaulelang != 'zh' else '软件将自动关闭，请重新启动')
+                                    'Please restart the software' if config.defaulelang != 'zh' else '软件将自动关闭，请重新启动，设置中各项配置信息需重新填写')
             self.main.close()
 
     # tts类型改变
@@ -783,6 +783,16 @@ class SecWindow():
             self.main.tts_type.setCurrentText(config.params['tts_type_list'][0])
             self.main.subform.set_gptsovits()
             return
+        if type == 'CosyVoice' and not config.params['cosyvoice_url']:
+            QMessageBox.critical(self.main, config.transobj['anerror'], 'You must deploy the CosyVoice-api project and start the api service, then fill in the api address' if config.defaulelang!='zh' else '必须部署CosyVoice-api项目并启动api服务，然后填写api地址')
+            self.main.tts_type.setCurrentText(config.params['tts_type_list'][0])
+            self.main.subform.set_cosyvoice()
+            return
+        if type == 'FishTTS' and not config.params['fishtts_url']:
+            QMessageBox.critical(self.main, config.transobj['anerror'], '必须填写FishTTS的api地址')
+            self.main.tts_type.setCurrentText(config.params['tts_type_list'][0])
+            self.main.subform.set_fishtts()
+            return
         if type == 'ChatTTS' and not config.params['chattts_api']:
             self.main.tts_type.setCurrentText(config.params['tts_type_list'][0])
             self.main.subform.set_chattts_address()
@@ -793,7 +803,15 @@ class SecWindow():
             self.main.tts_type.setCurrentText(config.params['tts_type_list'][0])
             QMessageBox.critical(self.main, config.transobj['anerror'], config.transobj['nogptsovitslanguage'])
             return
+        if lang and lang != '-' and type == 'CosyVoice' and lang[:2] not in ['zh', 'ja', 'en','ko']:
+            self.main.tts_type.setCurrentText(config.params['tts_type_list'][0])
+            QMessageBox.critical(self.main, config.transobj['anerror'],'CosyVoice only supports Chinese, English, Japanese and Korean' if config.defaulelang=='zh' else '')
+            return
         if lang and lang != '-' and type == 'ChatTTS' and lang[:2] not in ['zh', 'en']:
+            self.main.tts_type.setCurrentText(config.params['tts_type_list'][0])
+            QMessageBox.critical(self.main, config.transobj['anerror'], config.transobj['onlycnanden'])
+            return
+        if lang and lang != '-' and type == 'FishTTS' and lang[:2] not in ['zh', 'ja', 'en']:
             self.main.tts_type.setCurrentText(config.params['tts_type_list'][0])
             QMessageBox.critical(self.main, config.transobj['anerror'], config.transobj['onlycnanden'])
             return
@@ -807,6 +825,10 @@ class SecWindow():
         elif type == "openaiTTS":
             self.main.voice_role.clear()
             self.main.current_rolelist = config.params['openaitts_role'].split(',')
+            self.main.voice_role.addItems(['No'] + self.main.current_rolelist)
+        elif type == "302.ai":
+            self.main.voice_role.clear()
+            self.main.current_rolelist = config.params['ai302tts_role'].split(',')
             self.main.voice_role.addItems(['No'] + self.main.current_rolelist)
         elif type == 'elevenlabsTTS':
             self.main.voice_role.clear()
@@ -839,6 +861,16 @@ class SecWindow():
             self.main.voice_role.clear()
             self.main.current_rolelist = list(rolelist.keys()) if rolelist else ['GPT-SoVITS']
             self.main.voice_role.addItems(self.main.current_rolelist)
+        elif type == 'CosyVoice':
+            rolelist = tools.get_cosyvoice_role()
+            self.main.voice_role.clear()
+            self.main.current_rolelist = list(rolelist.keys()) if rolelist else ['clone']
+            self.main.voice_role.addItems(self.main.current_rolelist)
+        elif type == 'FishTTS':
+            rolelist = tools.get_fishtts_role()
+            self.main.voice_role.clear()
+            self.main.current_rolelist = list(rolelist.keys()) if rolelist else ['FishTTS']
+            self.main.voice_role.addItems(self.main.current_rolelist)
 
     # 试听配音
     def listen_voice_fun(self):
@@ -858,7 +890,7 @@ class SecWindow():
         volume = int(self.main.volume_rate.value())
         pitch = int(self.main.pitch_rate.value())
         voice_file = f"{voice_dir}/{config.params['tts_type']}-{lang}-{lujing_role}-{volume}-{pitch}.mp3"
-        if config.params['tts_type'] in ['GPT-SoVITS', 'ChatTTS']:
+        if config.params['tts_type'] in ['GPT-SoVITS', 'CosyVoice','ChatTTS','FishTTS']:
             voice_file += '.wav'
 
         obj = {
@@ -871,16 +903,9 @@ class SecWindow():
             "volume": f'+{volume}%' if volume > 0 else f'{volume}%',
             "pitch": f'+{pitch}Hz' if pitch > 0 else f'{pitch}Hz',
         }
-        if config.params['tts_type'] == 'clone-voice' and role == 'clone':
+        if role == 'clone':
+            QMessageBox.critical(self.main, config.transobj['anerror'],'原音色克隆不可试听' if config.defaulelang=='zh' else 'The original sound clone cannot be auditioned')
             return
-        # 测试能否连接clone
-        if config.params['tts_type'] == 'clone-voice':
-            try:
-                tools.get_clone_role(set_p=True)
-            except:
-                QMessageBox.critical(self.main, config.transobj['anerror'],
-                                     config.transobj['You must deploy and start the clone-voice service'])
-                return
 
         def feed(d):
             QMessageBox.critical(self.main, config.transobj['anerror'], d)
@@ -911,6 +936,16 @@ class SecWindow():
             config.params['tts_type'] = 'edgeTTS'
             self.main.tts_type.setCurrentText('edgeTTS')
             return QMessageBox.critical(self.main, config.transobj['anerror'], config.transobj['nogptsovitslanguage'])
+        if code and code != '-' and config.params['tts_type'] == 'CosyVoice' and code[:2] not in ['zh', 'ja', 'en','ko']:
+            # 除此指望不支持
+            config.params['tts_type'] = 'edgeTTS'
+            self.main.tts_type.setCurrentText('edgeTTS')
+            return QMessageBox.critical(self.main, config.transobj['anerror'], 'CosyVoice仅支持中英日韩四种语言' if config.defaulelang=='zh' else 'CosyVoice only supports Chinese, English, Japanese and Korean')
+        if code and code != '-' and config.params['tts_type'] == 'FishTTS' and code[:2] not in ['zh', 'ja', 'en']:
+            # 除此指望不支持
+            config.params['tts_type'] = 'edgeTTS'
+            self.main.tts_type.setCurrentText('edgeTTS')
+            return QMessageBox.critical(self.main, config.transobj['anerror'], 'FishTTS仅可用于中日英配音')
         if code and code != '-' and config.params['tts_type'] == 'ChatTTS' and code[:2] not in ['zh', 'en']:
             # 除此指望不支持
             config.params['tts_type'] = 'edgeTTS'
@@ -1228,6 +1263,9 @@ ChatGPT等api地址请填写在菜单-设置-对应配置内。
         # tts类型
         if config.params['tts_type'] == 'openaiTTS' and not config.params["chatgpt_key"]:
             QMessageBox.critical(self.main, config.transobj['anerror'], config.transobj['chatgptkeymust'])
+            return False
+        if config.params['tts_type'] == '302.ai' and not config.params["ai302tts_key"]:
+            QMessageBox.critical(self.main, config.transobj['anerror'], '必须设置302.ai的API KEY')
             return False
         if config.params['tts_type'] == 'clone-voice' and not config.params["clone_api"]:
             config.logger.error(f"不存在clone-api:{config.params['tts_type']=},{config.params['clone_api']=}")

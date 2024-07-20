@@ -66,7 +66,7 @@ def get_content(d,*,model=None,prompt=None,assiant=None):
     config.logger.info(f"\n[chatGPT]发送请求数据:{message=}")
     try:
         response = model.chat.completions.create(
-            model=config.params['chatgpt_model'],
+            model= 'gpt-4o-mini' if config.params['chatgpt_model'].lower().find('gpt-3.5')>-1 else config.params['chatgpt_model'],
             messages=message
         )
         config.logger.info(f'[chatGPT]响应:{response=}')
@@ -90,6 +90,7 @@ def get_content(d,*,model=None,prompt=None,assiant=None):
     return re.sub(r'\n{2,}',"\n",result)
 
 
+
 def trans(text_list, target_language="English", *, set_p=True,inst=None,stop=0,source_code="",is_test=False):
     """
     text_list:
@@ -111,10 +112,10 @@ def trans(text_list, target_language="English", *, set_p=True,inst=None,stop=0,s
     split_size = int(config.settings['trans_thread'])
     #if is_srt and split_size>1:
     prompt=config.params['chatgpt_template'].replace('{lang}', target_language)
-    with open(config.rootdir+"/videotrans/chatgpt.txt",'r',encoding="utf-8") as f:
+    with open(config.rootdir+"/videotrans/chatgpt"+("" if config.defaulelang=='zh' else '-en')+".txt",'r',encoding="utf-8") as f:
         prompt=f.read().replace('{lang}', target_language)
 
-    assiant=f"Sure, please provide the text you need translated into {target_language}"
+    assiant=f"Sure, please provide the text you need translated into {target_language}" if config.defaulelang!='zh' else f'好的，请提供您需要翻译成{target_language}的文本'
 
 
     end_point="。" if config.defaulelang=='zh' else '. '
@@ -165,9 +166,16 @@ def trans(text_list, target_language="English", *, set_p=True,inst=None,stop=0,s
                 sep_res = tools.cleartext(result).split("\n")
                 raw_len = len(it)
                 sep_len = len(sep_res)
-                # 如果返回数量和原始语言数量不一致，则重新切割
+                # 如果返回结果相差原字幕仅少一行，对最后一行进行拆分
+                if sep_len+1==raw_len:
+                    config.logger.error('如果返回结果相差原字幕仅少一行，对最后一行进行拆分')
+                    sep_res=tools.split_line(sep_res)
+                    if sep_res:
+                        sep_len=len(sep_res)
+                
+                # 如果返回数量和原始语言数量相差超过1，或再拆分失败
                 if sep_len < raw_len:
-                    config.logger.error(f'翻译前后数量不一致，需要重新按行翻译')
+                    config.logger.error(f'翻译前后数量不一致，先提交AI进行拆分')
                     sep_res = []
                     for it_n in it:
                         t= get_content(it_n.strip(),model=client,prompt=prompt,assiant=assiant)

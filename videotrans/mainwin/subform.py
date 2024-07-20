@@ -1,5 +1,7 @@
+import json
 import os
 import re
+import webbrowser
 
 from PySide6 import QtWidgets
 from PySide6.QtCore import QThread, Signal, QUrl
@@ -387,6 +389,78 @@ class Subform():
         self.main.chatttsw.test.clicked.connect(test)
         self.main.chatttsw.show()
 
+    def set_ai302tts_address(self):
+        class TestTTS(QThread):
+            uito = Signal(str)
+
+            def __init__(self, *, parent=None, text=None):
+                super().__init__(parent=parent)
+                self.text = text
+
+            def run(self):
+                from videotrans.tts.ai302tts import get_voice
+                try:
+                    get_voice(text=self.text, role="alloy", set_p=False, filename=config.homedir + "/test.mp3")
+                    self.uito.emit("ok")
+                except Exception as e:
+                    self.uito.emit(str(e))
+
+        def feed(d):
+            if d == "ok":
+                tools.pygameaudio(config.homedir + "/test.mp3")
+                QtWidgets.QMessageBox.information(self.main.ai302ttsw, "ok", "Test Ok")
+            else:
+                QtWidgets.QMessageBox.critical(self.main.ai302ttsw, config.transobj['anerror'], d)
+            self.main.ai302ttsw.test_ai302tts.setText('测试')
+
+        def test():
+            key = self.main.ai302ttsw.ai302tts_key.text().strip()
+            model = self.main.ai302ttsw.ai302tts_model.currentText()
+            if not key or not model:
+                return QtWidgets.QMessageBox.critical(self.main.ai302ttsw, config.transobj['anerror'], '必须填写 302.ai 的API KEY 和 model')
+            self.main.settings.setValue("ai302tts_key", key)
+            self.main.settings.setValue("ai302tts_model", model)
+            config.params["ai302tts_key"] = key
+            config.params["ai302tts_model"] = model
+            task = TestTTS(parent=self.main.ai302ttsw, text="你好啊我的朋友")
+            self.main.ai302ttsw.test_ai302tts.setText('测试中请稍等...')
+            task.uito.connect(feed)
+            task.start()
+
+        def save():
+            key = self.main.ai302ttsw.ai302tts_key.text().strip()
+            model = self.main.ai302ttsw.ai302tts_model.currentText()
+            self.main.settings.setValue("ai302tts_key", key)
+            self.main.settings.setValue("ai302tts_model", model)
+            config.params["ai302tts_key"] = key
+            config.params["ai302tts_model"] = model
+            self.main.ai302ttsw.close()
+        def setallmodels():
+            t=self.main.ai302ttsw.edit_allmodels.toPlainText().strip().replace('，',',').rstrip(',')
+            current_text=self.main.ai302ttsw.ai302tts_model.currentText()
+            self.main.ai302ttsw.ai302tts_model.clear()
+            self.main.ai302ttsw.ai302tts_model.addItems([x for x in t.split(',') if x.strip()])
+            self.main.ai302ttsw.ai302tts_model.setCurrentText(current_text)
+            jsdata = json.load(open(config.rootdir + '/videotrans/cfg.json', 'r', encoding='utf-8'))
+            jsdata['ai302tts_models']=t
+            json.dump(jsdata,open(config.rootdir + '/videotrans/cfg.json', 'w', encoding='utf-8'))
+
+        from videotrans.component import AI302TTSForm
+        self.main.ai302ttsw = AI302TTSForm()
+        jsdata=json.load(open(config.rootdir+'/videotrans/cfg.json','r',encoding='utf-8'))
+        allmodels=jsdata['ai302tts_models'].split(',') if 'ai302tts_models' in jsdata else {}
+        self.main.ai302ttsw.ai302tts_model.addItems(allmodels)
+        self.main.ai302ttsw.edit_allmodels.setPlainText(jsdata['ai302tts_models'])
+        if config.params["ai302tts_model"] and config.params["ai302tts_model"] in allmodels:
+            self.main.ai302ttsw.ai302tts_model.setCurrentText(config.params["ai302tts_model"])
+        if config.params["ai302tts_key"]:
+            self.main.ai302ttsw.ai302tts_key.setText(config.params["ai302tts_key"])
+        self.main.ai302ttsw.edit_allmodels.textChanged.connect(setallmodels)
+        self.main.ai302ttsw.set_ai302tts.clicked.connect(save)
+        self.main.ai302ttsw.test_ai302tts.clicked.connect(test)
+        self.main.ai302ttsw.show()
+
+
     def set_zh_recogn(self):
         class Test(QThread):
             uito = Signal(str)
@@ -556,6 +630,98 @@ class Subform():
         self.main.w.set_chatgpt.clicked.connect(save_chatgpt)
         self.main.w.test_chatgpt.clicked.connect(test)
         self.main.w.show()
+
+
+    def set_ai302_key(self):
+        class TestAI302(QThread):
+            uito = Signal(str)
+
+            def __init__(self, *, parent=None):
+                super().__init__(parent=parent)
+
+            def run(self):
+                try:
+                    from videotrans.translator.ai302 import trans as trans_ai302
+                    raw = "你好啊我的朋友" if config.defaulelang != 'zh' else "hello,my friend"
+                    text = trans_ai302(raw, "English" if config.defaulelang != 'zh' else "Chinese", set_p=False,
+                                         is_test=True)
+                    self.uito.emit(f"ok:{raw}\n{text}")
+                except Exception as e:
+                    self.uito.emit(str(e))
+
+        def feed(d):
+            if not d.startswith("ok:"):
+                QtWidgets.QMessageBox.critical(self.main.ai302fyw, config.transobj['anerror'], d)
+            else:
+                QtWidgets.QMessageBox.information(self.main.ai302fyw, "OK", d[3:])
+            self.main.ai302fyw.test_ai302.setText('测试' if config.defaulelang == 'zh' else 'Test')
+
+        def test():
+            key = self.main.ai302fyw.ai302_key.text()
+            model = self.main.ai302fyw.ai302_model.currentText()
+            template = self.main.ai302fyw.ai302_template.toPlainText()
+            self.main.settings.setValue("ai302_key", key)
+
+            self.main.settings.setValue("ai302_model", model)
+            self.main.settings.setValue("ai302_template", template)
+
+            config.params["ai302_key"] = key
+            config.params["ai302_model"] = model
+            config.params["ai302_template"] = template
+
+            task = TestAI302(parent=self.main.ai302fyw)
+            self.main.ai302fyw.test_ai302.setText('测试中请稍等...' if config.defaulelang == 'zh' else 'Testing...')
+            task.uito.connect(feed)
+            task.start()
+            self.main.ai302fyw.test_ai302.setText('测试中请稍等...' if config.defaulelang == 'zh' else 'Testing...')
+
+        def save_ai302():
+            key = self.main.ai302fyw.ai302_key.text()
+            model = self.main.ai302fyw.ai302_model.currentText()
+            template = self.main.ai302fyw.ai302_template.toPlainText()
+            self.main.settings.setValue("ai302_key", key)
+
+            self.main.settings.setValue("ai302_model", model)
+            self.main.settings.setValue("ai302_template", template)
+
+            config.params["ai302_key"] = key
+            config.params["ai302_model"] = model
+            config.params["ai302_template"] = template
+
+            self.main.ai302fyw.close()
+        def setallmodels():
+            t=self.main.ai302fyw.edit_allmodels.toPlainText().strip().replace('，',',').rstrip(',')
+            current_text=self.main.ai302fyw.ai302_model.currentText()
+            self.main.ai302fyw.ai302_model.clear()
+            self.main.ai302fyw.ai302_model.addItems([x for x in t.split(',') if x.strip()])
+            self.main.ai302fyw.ai302_model.setCurrentText(current_text)
+            jsdata = json.load(open(config.rootdir + '/videotrans/cfg.json', 'r', encoding='utf-8'))
+            jsdata['ai302_models']=t
+            json.dump(jsdata,open(config.rootdir + '/videotrans/cfg.json', 'w', encoding='utf-8'))
+
+
+
+        from videotrans.component import AI302Form
+        self.main.ai302fyw = AI302Form()
+        jsdata = json.load(open(config.rootdir + '/videotrans/cfg.json', 'r', encoding='utf-8'))
+        allmodels = jsdata['ai302_models'].split(',') if 'ai302_models' in jsdata else {}
+        self.main.ai302fyw.ai302_model.addItems(allmodels)
+        self.main.ai302fyw.edit_allmodels.setPlainText(jsdata['ai302_models'])
+
+        if config.params["ai302_key"]:
+            self.main.ai302fyw.ai302_key.setText(config.params["ai302_key"])
+        if config.params["ai302_model"] and config.params["ai302_model"] in allmodels:
+            self.main.ai302fyw.ai302_model.setCurrentText(config.params["ai302_model"])
+        if config.params["ai302_template"]:
+            self.main.ai302fyw.ai302_template.setPlainText(config.params["ai302_template"])
+        self.main.ai302fyw.edit_allmodels.textChanged.connect(setallmodels)
+        self.main.ai302fyw.set_ai302.clicked.connect(save_ai302)
+        self.main.ai302fyw.test_ai302.clicked.connect(test)
+        self.main.ai302fyw.label_0.clicked.connect(lambda :webbrowser.open_new_tab("https://302.ai"))
+        self.main.ai302fyw.label_01.clicked.connect(lambda :webbrowser.open_new_tab("https://pyvideotrans.com/302ai"))
+        self.main.ai302fyw.show()
+
+
 
     def set_localllm_key(self):
         class TestLocalLLM(QThread):
@@ -747,8 +913,6 @@ class Subform():
 
         self.main.doubaow.set_save.clicked.connect(save)
         self.main.doubaow.show()
-
-
 
 
     def set_ttsapi(self):
@@ -952,7 +1116,7 @@ class Subform():
                     return
                 role = s[0]
             config.params['gptsovits_role'] = tmp
-            self.main.settings.setValue("gptsovits_rolel", tmp)
+            self.main.settings.setValue("gptsovits_role", tmp)
             return role
 
         def save():
@@ -982,6 +1146,167 @@ class Subform():
         self.main.gptsovitsw.save.clicked.connect(save)
         self.main.gptsovitsw.test.clicked.connect(test)
         self.main.gptsovitsw.show()
+
+    def set_cosyvoice(self):
+        class TestTTS(QThread):
+            uito = Signal(str)
+
+            def __init__(self, *, parent=None, text=None,  role=None):
+                super().__init__(parent=parent)
+                self.text = text
+                self.role = role
+
+            def run(self):
+                from videotrans.tts.cosyvoice import get_voice
+                try:
+                    get_voice(text=self.text, set_p=False, role=self.role,language='zh',
+                              filename=config.homedir + "/test.wav")
+                    self.uito.emit("ok")
+                except Exception as e:
+                    self.uito.emit(str(e))
+
+        def feed(d):
+            if d == "ok":
+                tools.pygameaudio(config.homedir + "/test.wav")
+                QtWidgets.QMessageBox.information(self.main.cosyvoicew, "ok", "Test Ok")
+            else:
+                QtWidgets.QMessageBox.critical(self.main.cosyvoicew, config.transobj['anerror'], d)
+            self.main.cosyvoicew.test.setText('测试api')
+
+        def test():
+            url = self.main.cosyvoicew.api_url.text()
+            config.params["cosyvoice_url"] = url
+            task = TestTTS(parent=self.main.cosyvoicew,
+                           text="你好啊我的朋友",
+                           role=getrole())
+            self.main.cosyvoicew.test.setText('测试中请稍等...')
+            task.uito.connect(feed)
+            task.start()
+
+        def getrole():
+            tmp = self.main.cosyvoicew.role.toPlainText().strip()
+            role = None
+            if not tmp:
+                return role
+
+            for it in tmp.split("\n"):
+                s = it.strip().split('#')
+                if len(s) !=2:
+                    QtWidgets.QMessageBox.critical(self.main.cosyvoicew, config.transobj['anerror'],
+                                                   "每行都必须以#分割为2部分，格式为  音频名称.wav#音频文字内容,并且第一部分为.wav结尾的音频名称")
+                    return
+
+                role = s[0]
+            config.params['cosyvoice_role'] = tmp
+            self.main.settings.setValue("cosyvoice_role", tmp)
+            return role
+
+        def save():
+            url = self.main.cosyvoicew.api_url.text()
+
+            role = self.main.cosyvoicew.role.toPlainText().strip()
+
+            self.main.settings.setValue("cosyvoice_role", role)
+            self.main.settings.setValue("cosyvoice_url", url)
+
+
+            config.params["cosyvoice_url"] = url
+
+            config.params["cosyvoice_role"] = role
+
+            self.main.cosyvoicew.close()
+
+        from videotrans.component import CosyVoiceForm
+        self.main.cosyvoicew = CosyVoiceForm()
+        if config.params["cosyvoice_url"]:
+            self.main.cosyvoicew.api_url.setText(config.params["cosyvoice_url"])
+        if config.params["cosyvoice_role"]:
+            self.main.cosyvoicew.role.setPlainText(config.params["cosyvoice_role"])
+
+        self.main.cosyvoicew.save.clicked.connect(save)
+        self.main.cosyvoicew.test.clicked.connect(test)
+        self.main.cosyvoicew.show()
+
+    def set_fishtts(self):
+        class TestTTS(QThread):
+            uito = Signal(str)
+
+            def __init__(self, *, parent=None, text=None, role=None):
+                super().__init__(parent=parent)
+                self.text = text
+                self.role = role
+
+            def run(self):
+                from videotrans.tts.fishtts import get_voice
+                try:
+                    get_voice(text=self.text, set_p=False, role=self.role,
+                              filename=config.homedir + "/test.wav")
+                    self.uito.emit("ok")
+                except Exception as e:
+                    self.uito.emit(str(e))
+
+        def feed(d):
+            if d == "ok":
+                tools.pygameaudio(config.homedir + "/test.wav")
+                QtWidgets.QMessageBox.information(self.main.fishttsw, "ok", "Test Ok")
+            else:
+                QtWidgets.QMessageBox.critical(self.main.fishttsw, config.transobj['anerror'], d)
+            self.main.fishttsw.test.setText('测试api')
+
+        def test():
+            url = self.main.fishttsw.api_url.text()
+            config.params["fishtts_url"] = url
+            task = TestTTS(parent=self.main.fishttsw,
+                           text="你好啊我的朋友",
+                           role=getrole())
+            self.main.fishttsw.test.setText('测试中请稍等...')
+            task.uito.connect(feed)
+            task.start()
+
+        def getrole():
+            tmp = self.main.fishttsw.role.toPlainText().strip()
+            role = None
+            if not tmp:
+                return role
+
+            for it in tmp.split("\n"):
+                s = it.strip().split('#')
+                if len(s) != 2:
+                    QtWidgets.QMessageBox.critical(self.main.fishttsw, config.transobj['anerror'],
+                                                   "每行都必须以#分割为2部分，格式为   音频名称.wav#音频文字内容")
+                    return
+                if not s[0].endswith(".wav"):
+                    QtWidgets.QMessageBox.critical(self.main.fishttsw, config.transobj['anerror'],
+                                                   "每行都必须以#分割为2部分，格式为  音频名称.wav#音频文字内容")
+                    return
+                role = s[0]
+            config.params['fishtts_role'] = tmp
+            self.main.settings.setValue("fishtts_rolel", tmp)
+            return role
+
+        def save():
+            url = self.main.fishttsw.api_url.text()
+            role = self.main.fishttsw.role.toPlainText().strip()
+
+            self.main.settings.setValue("fishtts_role", role)
+            self.main.settings.setValue("fishtts_url", url)
+
+            config.params["fishtts_url"] = url
+            config.params["fishtts_role"] = role
+
+            self.main.fishttsw.close()
+
+        from videotrans.component import FishTTSForm
+        self.main.fishttsw = FishTTSForm()
+        if config.params["fishtts_url"]:
+            self.main.fishttsw.api_url.setText(config.params["fishtts_url"])
+        if config.params["fishtts_role"]:
+            self.main.fishttsw.role.setPlainText(config.params["fishtts_role"])
+
+        self.main.fishttsw.save.clicked.connect(save)
+        self.main.fishttsw.test.clicked.connect(test)
+        self.main.fishttsw.show()
+
 
     def set_gemini_key(self):
         def save():

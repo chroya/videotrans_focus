@@ -51,6 +51,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.azw = None
         self.gw = None
         self.gptsovitsw = None
+        self.fishttsw = None
         self.transapiw = None
         self.ttsapiw = None
         self.zijiew = None
@@ -70,6 +71,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.util = None
         self.moshis = None
         self.doubaow=None
+        self.cosyvoicew=None
+        self.ai302fyw=None
+        self.ai302ttsw=None
 
         self.app_mode = "biaozhun_jd"
         self.processbtns = {}
@@ -238,6 +242,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         elif config.params['tts_type'] == 'GPT-SoVITS':
             rolelist = tools.get_gptsovits_role()
             self.voice_role.addItems(list(rolelist.keys()) if rolelist else ['GPT-SoVITS'])
+        elif config.params['tts_type'] == 'CosyVoice':
+            rolelist = tools.get_cosyvoice_role()
+            self.voice_role.addItems(list(rolelist.keys()) if rolelist else ['clone'])
+        elif config.params['tts_type'] == 'FishTTS':
+            rolelist = tools.get_fishtts_role()
+            self.voice_role.addItems(list(rolelist.keys()) if rolelist else ['FishTTS'])
 
         if config.params['tts_type']:
             if config.params['tts_type'] not in ['edgeTTS', 'AzureTTS']:
@@ -295,8 +305,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             lambda: self.util.autorate_changed(self.video_autorate.isChecked(), "video"))
         self.append_video.stateChanged.connect(
             lambda: self.util.autorate_changed(self.video_autorate.isChecked(), "append_video"))
-        # self.auto_ajust.stateChanged.connect(
-        #     lambda: self.util.autorate_changed(self.auto_ajust.isChecked(), "auto_ajust"))
+
         # tts_type 改变时，重设角色
         self.tts_type.currentTextChanged.connect(self.util.tts_type_change)
         self.addbackbtn.clicked.connect(self.util.get_background)
@@ -315,6 +324,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actiongemini_key.triggered.connect(self.subform.set_gemini_key)
         self.actiontencent_key.triggered.connect(self.subform.set_tencent_key)
         self.actionchatgpt_key.triggered.connect(self.subform.set_chatgpt_key)
+        self.actionai302_key.triggered.connect(self.subform.set_ai302_key)
         self.actionlocalllm_key.triggered.connect(self.subform.set_localllm_key)
         self.actionzijiehuoshan_key.triggered.connect(self.subform.set_zijiehuoshan_key)
         self.actiondeepL_key.triggered.connect(self.subform.set_deepL_key)
@@ -323,11 +333,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionott_address.triggered.connect(self.subform.set_ott_address)
         self.actionclone_address.triggered.connect(self.subform.set_clone_address)
         self.actionchattts_address.triggered.connect(self.subform.set_chattts_address)
+        self.actionai302tts_address.triggered.connect(self.subform.set_ai302tts_address)
         self.actiontts_api.triggered.connect(self.subform.set_ttsapi)
         self.actionzhrecogn_api.triggered.connect(self.subform.set_zh_recogn)
         self.actiondoubao_api.triggered.connect(self.subform.set_doubao)
         self.actiontrans_api.triggered.connect(self.subform.set_transapi)
         self.actiontts_gptsovits.triggered.connect(self.subform.set_gptsovits)
+        self.actiontts_cosyvoice.triggered.connect(self.subform.set_cosyvoice)
+        self.actiontts_fishtts.triggered.connect(self.subform.set_fishtts)
         self.action_ffmpeg.triggered.connect(lambda: self.util.open_url('ffmpeg'))
         self.action_git.triggered.connect(lambda: self.util.open_url('git'))
         self.action_discord.triggered.connect(lambda: self.util.open_url('discord'))
@@ -461,6 +474,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         config.params["chatgpt_api"] = self.settings.value("chatgpt_api", "")
         config.params["chatgpt_key"] = self.settings.value("chatgpt_key", "")
+        config.params["ai302_key"] = self.settings.value("ai302_key", "")
+        config.params["ai302tts_key"] = self.settings.value("ai302tts_key", "")
         config.params["localllm_api"] = self.settings.value("localllm_api", "")
         config.params["localllm_key"] = self.settings.value("localllm_key", "")
         config.params["azure_speech_key"] = self.settings.value("azure_speech_key", "")
@@ -470,6 +485,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             config.clone_voicelist = self.settings.value("clone_voicelist", "").split(',')
 
         config.params["chatgpt_model"] = self.settings.value("chatgpt_model", config.params['chatgpt_model'])
+        config.params["ai302_model"] = self.settings.value("ai302_model", config.params['ai302_model'])
+        config.params["ai302tts_model"] = self.settings.value("ai302tts_model", config.params['ai302tts_model'])
 
         if not config.settings['localllm_model']:
             self.settings.setValue('localllm_model', '')
@@ -496,6 +513,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         config.params["gptsovits_url"] = self.settings.value("gptsovits_url", "")
         config.params["gptsovits_extra"] = self.settings.value("gptsovits_extra", "pyvideotrans")
         config.params["gptsovits_role"] = self.settings.value("gptsovits_role", "")
+
+        config.params["cosyvoice_url"] = self.settings.value("cosyvoice_url", "")
+        config.params["cosyvoice_role"] = self.settings.value("cosyvoice_role", "")
+
+        config.params["fishtts_url"] = self.settings.value("fishtts_url", "")
+        config.params["fishtts_role"] = self.settings.value("fishtts_role", "")
 
         config.params["gemini_key"] = self.settings.value("gemini_key", "")
         config.params["zh_recogn_api"] = self.settings.value("zh_recogn_api", "")

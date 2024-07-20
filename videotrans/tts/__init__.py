@@ -22,42 +22,43 @@ def text_to_speech(
     get_voice=None
     if tts_type == "edgeTTS":
         from .edgetts import get_voice
-        # lasterror=get_voice(text=text, role=role, rate=rate, language=language,filename=filename,set_p=set_p,inst=inst,volume=volume,pitch=pitch)
     elif tts_type == "AzureTTS":
         from .azuretts import get_voice
-        # lasterror=get_voice(text=text, role=role, rate=rate, language=language,filename=filename,set_p=set_p,inst=inst)
     elif tts_type == "openaiTTS":
         from .openaitts import get_voice
-        # lasterror=get_voice(text=text, role=role, rate=rate, language=language,filename=filename,set_p=set_p,inst=inst)
     elif tts_type == "clone-voice":
         from .clone import get_voice
-        # lasterror=get_voice(text=text, role=role, language=language, filename=filename,set_p=set_p,inst=inst)
     elif tts_type=='TTS-API':
         from .ttsapi import get_voice
-        # lasterror=get_voice(text=text, role=role, language=language, filename=filename,set_p=set_p,inst=inst)
     elif tts_type=='GPT-SoVITS':
         from .gptsovits import get_voice
-        # lasterror=get_voice(text=text, role=role, language=language, filename=filename,set_p=set_p,inst=inst)
+    elif tts_type=='CosyVoice':
+        from .cosyvoice import get_voice
+    elif tts_type=='FishTTS':
+        from .fishtts import get_voice
     elif tts_type == 'elevenlabsTTS':
         from .elevenlabs import get_voice
-        # lasterror=get_voice(text=text, role=role, rate=rate,language=language, filename=filename,set_p=set_p,inst=inst)
     elif tts_type =='gtts':
         from .gtts import get_voice
     elif tts_type=='ChatTTS':
         from .chattts import get_voice
-        # lasterror=get_voice(text=text, role=role, rate=rate, language=language,filename=filename,set_p=set_p,inst=inst)
+    elif tts_type=='302.ai':
+        from .ai302tts import get_voice
 
     if get_voice:
-        get_voice(
-                text=text,
-                volume=volume,
-                pitch=pitch,
-                role=role,
-                rate=rate,
-                language=language,
-                filename=filename,
-                set_p=set_p,
-                inst=inst)
+        try:
+            get_voice(
+                    text=text,
+                    volume=volume,
+                    pitch=pitch,
+                    role=role,
+                    rate=rate,
+                    language=language,
+                    filename=filename,
+                    set_p=set_p,
+                    inst=inst)
+        except Exception as e:
+            lasterror=str(e)
     if tools.vail_file(filename):
         if play:
             threading.Thread(target=tools.pygameaudio, args=(filename,)).start()
@@ -104,7 +105,7 @@ def run(*, queue_tts=None, language=None, set_p=True, inst=None):
                 for i in range(dub_nums):
                     if len(queue_tts) > 0:
                         p=queue_tts.pop(0)
-                        if p['tts_type']!='clone-voice' and tools.vail_file(p['filename']):
+                        if p['role']!='clone' and tools.vail_file(p['filename']):
                             continue
                         tolist.append(threading.Thread(target=text_to_speech, kwargs={
                             "text":p['text'],

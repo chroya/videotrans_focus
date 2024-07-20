@@ -16,7 +16,7 @@ def recogn(*,
            set_p=True,
            inst=None,
            is_cuda=None):
-    print(f'整体识别')
+    config.logger.info('faster模式 整体识别')
     if config.exit_soft or (config.current_status != 'ing' and config.box_recogn != 'ing'):
         return False
     down_root = config.rootdir + "/models"
@@ -117,7 +117,10 @@ def recogn(*,
                 raws.append(cur)
 
         for segment in segments:
+            if len(segment.words)<1:
+                continue
             if len(segment.text.strip()) <= maxlen:
+                
                 tmp = {
                     "line": len(raws) + 1,
                     "start_time": int(segment.words[0].start * 1000),
@@ -148,6 +151,9 @@ def recogn(*,
                     cur['time'] = f'{tools.ms_to_time_string(ms=cur["start_time"])} --> {tools.ms_to_time_string(ms=cur["end_time"])}'
                     cur['text'] = cur['text'].strip()
                     append_raws(cur)
+                    if len(word.word)<2:
+                        cur=None
+                        continue
                     cur = {
                         "line": len(raws) + 1,
                         "start_time": int(word.start * 1000),

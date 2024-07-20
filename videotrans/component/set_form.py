@@ -4,13 +4,17 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QDialog
 
 from videotrans.configure import config
+from videotrans.ui.ai302 import Ui_ai302form
+from videotrans.ui.ai302tts import Ui_ai302ttsform
 from videotrans.ui.article import Ui_articleform
 from videotrans.ui.azure import Ui_azureform
 from videotrans.ui.baidu import Ui_baiduform
 from videotrans.ui.chatgpt import Ui_chatgptform
 from videotrans.ui.chattts import Ui_chatttsform
+from videotrans.ui.cosyvoice import Ui_cosyvoiceform
 from videotrans.ui.deepl import Ui_deeplform
 from videotrans.ui.deeplx import Ui_deeplxform
+from videotrans.ui.fishtts import Ui_fishttsform
 from videotrans.ui.gptsovits import Ui_gptsovitsform
 from videotrans.ui.localllm import Ui_localllmform
 from videotrans.ui.ott import Ui_ottform
@@ -97,6 +101,37 @@ class TransapiForm(QDialog, Ui_transapiform):  # <===
 class GPTSoVITSForm(QDialog, Ui_gptsovitsform):  # <===
     def __init__(self, parent=None):
         super(GPTSoVITSForm, self).__init__(parent)
+        self.setupUi(self)
+        self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+        self.setWindowIcon(QIcon(f"{config.rootdir}/videotrans/styles/icon.ico"))
+
+class CosyVoiceForm(QDialog, Ui_cosyvoiceform):  # <===
+    def __init__(self, parent=None):
+        super(CosyVoiceForm, self).__init__(parent)
+        self.setupUi(self)
+        self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+        self.setWindowIcon(QIcon(f"{config.rootdir}/videotrans/styles/icon.ico"))
+
+
+class FishTTSForm(QDialog, Ui_fishttsform):  # <===
+    def __init__(self, parent=None):
+        super(FishTTSForm, self).__init__(parent)
+        self.setupUi(self)
+        self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+        self.setWindowIcon(QIcon(f"{config.rootdir}/videotrans/styles/icon.ico"))
+
+
+class AI302Form(QDialog, Ui_ai302form):  # <===
+    def __init__(self, parent=None):
+        super(AI302Form, self).__init__(parent)
+        self.setupUi(self)
+        self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+        self.setWindowIcon(QIcon(f"{config.rootdir}/videotrans/styles/icon.ico"))
+
+
+class AI302TTSForm(QDialog, Ui_ai302ttsform):  # <===
+    def __init__(self, parent=None):
+        super(AI302TTSForm, self).__init__(parent)
         self.setupUi(self)
         self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
         self.setWindowIcon(QIcon(f"{config.rootdir}/videotrans/styles/icon.ico"))
@@ -227,7 +262,7 @@ class AzureForm(QDialog, Ui_azureform):  # <===
     def __init__(self, parent=None):
         super(AzureForm, self).__init__(parent)
         self.setupUi(self)
-        self.azure_model.addItems(config.chatgpt_model_list)
+        self.azure_model.addItems(config.azure_model_list)
         self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
         self.setWindowIcon(QIcon(f"{config.rootdir}/videotrans/styles/icon.ico"))
 

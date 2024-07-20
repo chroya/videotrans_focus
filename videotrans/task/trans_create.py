@@ -219,7 +219,6 @@ class TransCreate():
             raw_source_srt_path = Path(raw_source_srt)
             if raw_source_srt_path.is_file():
                 if raw_source_srt_path.stat().st_size == 0:
-                    print('删除吗')
                     raw_source_srt_path.unlink(missing_ok=True)
                 elif self.obj['output'] != self.obj['linshi_output']:
                     config.logger.info(f'使用已放置到目标文件夹下的原语言字幕:{raw_source_srt}')
@@ -276,12 +275,14 @@ class TransCreate():
         # 不是 提取字幕时，需要分离出视频
         if self.config_params['app_mode'] not in ['tiqu']:
             config.queue_novice[self.init['noextname']] = 'ing'
+            
             threading.Thread(target=tools.split_novoice_byraw,
                              args=(self.obj['source_mp4'],
                                    self.init['novoice_mp4'],
                                    self.init['noextname'],
-                                   "copy" if self.init['h264'] else f"libx{self.video_codec}")) \
-                .start()
+                                   "copy" if self.init['h264'] else f"libx{self.video_codec}")).start()
+            if not self.init['h264']:
+                self.status_text='视频需要转码，耗时可能较久..' if config.defaulelang=='zh' else 'Video needs transcoded and take a long time..'
         else:
             config.queue_novice[self.init['noextname']] = 'end'
 
