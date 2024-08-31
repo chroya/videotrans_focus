@@ -32,7 +32,7 @@ def __init__():
         print("正在获取 elevenlabs TTS 角色...")
         get_elevenlabs_role()
 
-def process(video_path, cfg_file, enableCuda = True) :
+def process(video_path, cfg_file, enableCuda = False) :
     # 先清理临时文件再跑
     tools.delete_temp()
     config.settings['countdown_sec'] = 0
